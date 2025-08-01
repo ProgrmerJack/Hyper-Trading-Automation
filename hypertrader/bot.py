@@ -10,6 +10,7 @@ from .utils.sentiment import fetch_news_headlines, compute_sentiment_score
 from .utils.features import compute_atr
 from .utils.risk import calculate_position_size
 from .strategies.indicator_signals import generate_signal
+from .strategies.ml_strategy import ml_signal
 from .data.macro import (
     fetch_dxy,
     fetch_interest_rate,
@@ -33,6 +34,7 @@ def run(
     risk_percent: float = 2.0,
     news_api_key: str | None = None,
     fred_api_key: str | None = None,
+    model_path: str | None = None,
     signal_path: str = "signal.json",
 ) -> None:
     """Run one iteration of the trading pipeline.
@@ -56,6 +58,16 @@ def run(
             macro_score = 0.0
 
     sig = generate_signal(data, sentiment, macro_score)
+
+    if model_path:
+        try:
+            model = pd.read_pickle(model_path)
+            ml_sig = ml_signal(model, data)
+            if ml_sig.action != sig.action:
+                # Require agreement for trade
+                sig.action = "HOLD"
+        except FileNotFoundError:
+            pass
 
     price = data["close"].iloc[-1]
     atr = compute_atr(data).iloc[-1]
@@ -92,6 +104,7 @@ if __name__ == "__main__":
     parser.add_argument("--risk_percent", type=float, default=2.0)
     parser.add_argument("--news_api_key")
     parser.add_argument("--fred_api_key")
+    parser.add_argument("--model_path")
     parser.add_argument("--signal_path", default="signal.json")
     args = parser.parse_args()
 
@@ -101,6 +114,7 @@ if __name__ == "__main__":
         risk_percent=args.risk_percent,
         news_api_key=args.news_api_key,
         fred_api_key=args.fred_api_key,
+        model_path=args.model_path,
         signal_path=args.signal_path,
     )
 

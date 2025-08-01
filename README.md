@@ -9,6 +9,7 @@ This project implements a simplified version of the trading automation system de
 - Basic sentiment analysis from NewsAPI headlines using VADER.
 - Macro indicators from Yahoo Finance and FRED (DXY, interest rates, liquidity).
 - Enhanced strategy uses EMA crossovers, SuperTrend direction, RSI and Bollinger Band confirmation with optional sentiment filter for more reliable signals.
+- Optional machine learning model using logistic regression to predict price direction.
 - Automatic position sizing based on account balance and risk percentage.
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
@@ -48,7 +49,33 @@ The `hypertrader.bot` module fetches data from Yahoo Finance, optionally gathers
  ```bash
  python -m hypertrader.bot BTC-USD --account_balance 10000 --risk_percent 2 \
      --fred_api_key YOUR_FRED_KEY
+    --model_path trained_model.pkl
  ```
 
 Alternatively set the `FRED_API_KEY` environment variable so the bot can
 retrieve macroeconomic series without specifying the flag each run.
+
+### Machine learning strategy
+
+You can optionally train a simple logistic regression model on historical data.
+The helper functions in `hypertrader.strategies.ml_strategy` make this easy:
+
+```python
+from hypertrader.strategies.ml_strategy import train_model, ml_signal
+from hypertrader.data.fetch_data import fetch_yahoo_ohlcv
+
+data = fetch_yahoo_ohlcv("BTC-USD", lookback="60d")
+model = train_model(data)
+sig = ml_signal(model, data)
+print(sig)
+model.to_pickle("trained_model.pkl")
+```
+
+The bot can load this model to confirm indicator-based signals for added
+confidence.
+
+Run the bot with the `--model_path` option to enable this behaviour:
+
+```bash
+python -m hypertrader.bot BTC-USD --model_path trained_model.pkl
+```
