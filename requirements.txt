@@ -1,0 +1,9 @@
+ccxt
+pandas
+vaderSentiment
+requests
+yfinance
+fredapi
+scikit-learn
+pytest
+numpy
