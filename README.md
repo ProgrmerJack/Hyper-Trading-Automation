@@ -14,6 +14,7 @@ This project implements a simplified version of the trading automation system de
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
 - On-chain gas fee analytics and order book imbalance filters for higher quality crypto signals.
+- Depth-of-market heatmap ratios to flag potential iceberg orders.
 
 ### Macro data
 

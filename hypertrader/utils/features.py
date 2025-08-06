@@ -49,6 +49,37 @@ def order_skew(order_book: dict, depth: int = 5) -> float:
     return (bid_vol - ask_vol) / total
 
 
+def dom_heatmap_ratio(order_book: dict, layers: int = 10) -> float:
+    """Compute bid/ask volume ratio from the depth of market.
+
+    Aggregates volume across the top ``layers`` of the order book and
+    returns the ratio of bid volume to ask volume. Values above ``1``
+    indicate bid dominance while values below ``1`` indicate ask
+    dominance.
+
+    Parameters
+    ----------
+    order_book : dict
+        Mapping containing ``bids`` and ``asks`` lists as returned by CCXT.
+    layers : int, optional
+        Number of price levels to aggregate, by default ``10``.
+
+    Returns
+    -------
+    float
+        Bid to ask volume ratio. If ask volume is zero the function
+        returns ``float('inf')`` when bids are present or ``1.0`` when the
+        book is empty.
+    """
+    bids = order_book.get("bids", [])[:layers]
+    asks = order_book.get("asks", [])[:layers]
+    bid_vol = sum(level[1] for level in bids)
+    ask_vol = sum(level[1] for level in asks)
+    if ask_vol == 0:
+        return float("inf") if bid_vol > 0 else 1.0
+    return bid_vol / ask_vol
+
+
 def compute_moving_average(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window).mean()
 
