@@ -8,6 +8,7 @@ from hypertrader.utils.performance import compute_returns, sharpe_ratio, max_dra
 
 
 def run_backtest(data: pd.DataFrame) -> tuple[float, float, float]:
+
     balance = 10000.0
     position = None
     entry_price = 0.0

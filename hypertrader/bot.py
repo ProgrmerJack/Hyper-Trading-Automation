@@ -11,6 +11,7 @@ from .utils.features import compute_atr
 from .utils.risk import calculate_position_size
 from .strategies.indicator_signals import generate_signal
 from .strategies.ml_strategy import ml_signal
+
 from .data.macro import (
     fetch_dxy,
     fetch_interest_rate,
@@ -69,6 +70,7 @@ def run(
         except FileNotFoundError:
             pass
 
+
     price = data["close"].iloc[-1]
     atr = compute_atr(data).iloc[-1]
     if sig.action == "BUY":
@@ -105,6 +107,7 @@ if __name__ == "__main__":
     parser.add_argument("--news_api_key")
     parser.add_argument("--fred_api_key")
     parser.add_argument("--model_path")
+
     parser.add_argument("--signal_path", default="signal.json")
     args = parser.parse_args()
 

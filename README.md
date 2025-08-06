@@ -33,7 +33,6 @@ pip install -r requirements.txt
 ```bash
 pytest -v
 ```
-
 3. Example backtest with performance metrics:
 
 ```bash
@@ -50,6 +49,7 @@ The `hypertrader.bot` module fetches data from Yahoo Finance, optionally gathers
  python -m hypertrader.bot BTC-USD --account_balance 10000 --risk_percent 2 \
      --fred_api_key YOUR_FRED_KEY
     --model_path trained_model.pkl
+
  ```
 
 Alternatively set the `FRED_API_KEY` environment variable so the bot can
