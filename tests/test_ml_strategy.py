@@ -17,7 +17,7 @@ def test_train_and_predict():
             "close": [1, 2, 3, 2, 3, 4, 5, 6, 5, 6],
             "volume": [1] * 10,
         },
-        index=pd.date_range("2024-01-01", periods=10, freq="H"),
+        index=pd.date_range("2024-01-01", periods=10, freq="h"),
     )
     model = train_model(df)
     sig = ml_signal(model, df)
@@ -34,7 +34,7 @@ def test_cross_validate_model():
             "close": list(range(25)) + list(range(25)),
             "volume": [1] * 50,
         },
-        index=pd.date_range("2024-01-01", periods=50, freq="H"),
+        index=pd.date_range("2024-01-01", periods=50, freq="h"),
     )
     score = cross_validate_model(df, cv=3)
     assert 0 <= score <= 1

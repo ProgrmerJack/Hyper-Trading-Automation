@@ -3,6 +3,8 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime
 
+from ..utils.net import fetch_with_retry
+
 
 def fetch_ohlcv(exchange_name: str, symbol: str, timeframe: str = '1h', since: int | None = None, limit: int = 1000) -> pd.DataFrame:
     """Fetch OHLCV data from the given exchange using CCXT.
@@ -35,8 +37,12 @@ def fetch_ohlcv(exchange_name: str, symbol: str, timeframe: str = '1h', since: i
 
 
 def fetch_yahoo_ohlcv(symbol: str, interval: str = '1h', lookback: str = '7d') -> pd.DataFrame:
-    """Fetch OHLCV data from Yahoo Finance."""
-    df = yf.download(symbol, period=lookback, interval=interval, progress=False)
+    """Fetch OHLCV data from Yahoo Finance with retry logic."""
+
+    def _download():
+        return yf.download(symbol, period=lookback, interval=interval, progress=False)
+
+    df = fetch_with_retry(_download)
     if df.empty:
         raise ValueError('No data fetched from Yahoo Finance')
 

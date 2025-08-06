@@ -28,6 +28,12 @@ score that influences trading signals.
 pip install -r requirements.txt
 ```
 
+### Configuration
+
+Runtime options such as API keys, default trading symbol and risk parameters
+are stored in `config.yaml`. Edit this file to suit your environment or pass a
+custom path to the bot using `--config`.
+
 2. Run tests:
 
 ```bash
@@ -47,13 +53,21 @@ The `hypertrader.bot` module fetches data from Yahoo Finance, optionally gathers
 
  ```bash
  python -m hypertrader.bot BTC-USD --account_balance 10000 --risk_percent 2 \
-     --fred_api_key YOUR_FRED_KEY
-    --model_path trained_model.pkl
+     --fred_api_key YOUR_FRED_KEY \
+     --model_path trained_model.pkl
+
+# alternatively load options from config.yaml
+python -m hypertrader.bot --config config.yaml
 
  ```
 
 Alternatively set the `FRED_API_KEY` environment variable so the bot can
 retrieve macroeconomic series without specifying the flag each run.
+
+### Logging
+
+The bot emits structured JSON logs with latency and other metrics. Redirect
+stdout to a file or log processor to monitor live trading performance.
 
 ### Machine learning strategy
 

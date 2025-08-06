@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from hypertrader.data.fetch_data import fetch_ohlcv, fetch_yahoo_ohlcv
+from hypertrader.data.macro import fetch_cardboard_production
 
 
 def test_fetch_ohlcv(monkeypatch):
@@ -20,7 +21,7 @@ def test_fetch_ohlcv(monkeypatch):
 
 def test_fetch_yahoo_ohlcv(monkeypatch):
     def dummy_download(symbol, period='7d', interval='1h', progress=False):
-        idx = pd.date_range('2024-01-01', periods=2, freq='H')
+        idx = pd.date_range('2024-01-01', periods=2, freq='h')
         data = {
             'Open': [1, 1],
             'High': [2, 2],
@@ -34,3 +35,12 @@ def test_fetch_yahoo_ohlcv(monkeypatch):
     df = fetch_yahoo_ohlcv('BTC-USD')
     assert list(df.columns) == ['open', 'high', 'low', 'close', 'volume']
     assert len(df) == 2
+
+
+def test_fetch_cardboard_production(monkeypatch):
+    def dummy_fetch(series_id, api_key):
+        return pd.Series([1, 2, 3])
+
+    monkeypatch.setattr('hypertrader.data.macro.fetch_fred_series', dummy_fetch)
+    series = fetch_cardboard_production('dummy')
+    assert list(series) == [1, 2, 3]
