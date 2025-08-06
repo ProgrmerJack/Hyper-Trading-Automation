@@ -1,12 +1,14 @@
 """Simple backtesting harness."""
+
 import pandas as pd
 from pathlib import Path
 
 from hypertrader.strategies.indicator_signals import generate_signal
-from hypertrader.utils.features import compute_moving_average
+from hypertrader.utils.performance import compute_returns, sharpe_ratio, max_drawdown
 
 
-def run_backtest(data: pd.DataFrame) -> float:
+def run_backtest(data: pd.DataFrame) -> tuple[float, float, float]:
+
     balance = 10000.0
     position = None
     entry_price = 0.0
@@ -15,28 +17,31 @@ def run_backtest(data: pd.DataFrame) -> float:
         window = data.iloc[: i + 1]
         signal = generate_signal(window)
 
-        price = data['close'].iloc[i]
-        if signal.action == 'BUY' and position is None:
-            position = 'LONG'
+        price = data["close"].iloc[i]
+        if signal.action == "BUY" and position is None:
+            position = "LONG"
             entry_price = price
-        elif signal.action == 'SELL' and position is not None:
+        elif signal.action == "SELL" and position is not None:
             profit = price - entry_price
             balance += profit
             position = None
     if position is not None:
-        balance += data['close'].iloc[-1] - entry_price
-    return balance
+        balance += data["close"].iloc[-1] - entry_price
+    returns = compute_returns(data["close"])
+    sr = sharpe_ratio(returns)
+    dd = max_drawdown(returns)
+    return balance, sr, dd
 
 
 def main():
-    csv_path = Path('data/raw/sample.csv')
+    csv_path = Path("data/raw/sample.csv")
     if not csv_path.exists():
-        print('No sample data for backtest')
+        print("No sample data for backtest")
         return
-    df = pd.read_csv(csv_path, parse_dates=['timestamp'], index_col='timestamp')
-    final_balance = run_backtest(df)
-    print(f'Final balance: {final_balance:.2f}')
+    df = pd.read_csv(csv_path, parse_dates=["timestamp"], index_col="timestamp")
+    balance, sr, dd = run_backtest(df)
+    print(f"Final balance: {balance:.2f} SR={sr:.2f} DD={dd:.2%}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

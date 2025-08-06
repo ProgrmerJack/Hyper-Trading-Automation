@@ -23,7 +23,8 @@ def test_run_creates_signal(monkeypatch, tmp_path):
     monkeypatch.setattr('hypertrader.bot.fetch_interest_rate', lambda *a, **k: pd.Series([5]*60))
     monkeypatch.setattr('hypertrader.bot.fetch_global_liquidity', lambda *a, **k: pd.Series([10]*60))
     signal_file = tmp_path / 'signal.json'
-    run('BTC-USD', account_balance=10000, risk_percent=2, news_api_key=None, fred_api_key='key', signal_path=str(signal_file))
+    run('BTC-USD', account_balance=10000, risk_percent=2, news_api_key=None, fred_api_key='key', model_path=None, signal_path=str(signal_file))
+
     assert signal_file.exists()
     data = json.loads(signal_file.read_text())
     assert 'action' in data

@@ -4,4 +4,6 @@ vaderSentiment
 requests
 yfinance
 fredapi
+scikit-learn
 pytest
+numpy
