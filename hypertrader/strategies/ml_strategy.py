@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
 
 from ..utils.features import compute_rsi, compute_ema
+from ..utils.macro import compute_risk_tolerance
 
 
 @dataclass
@@ -27,6 +28,18 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
     features["ema_fast"] = compute_ema(df["close"], 10).bfill()
     features["ema_slow"] = compute_ema(df["close"], 30).bfill()
     features["ema_diff"] = features["ema_fast"] - features["ema_slow"]
+
+    required_cols = {"liquidity", "yield_spread", "vix", "silver", "gold"}
+    if required_cols.issubset(df.columns):
+        risk = compute_risk_tolerance(
+            df["liquidity"],
+            df["yield_spread"],
+            df["vix"],
+            df["silver"],
+            df["gold"],
+        )
+        features["risk_tolerance"] = risk
+
     return features.dropna()
 
 
