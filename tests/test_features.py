@@ -8,6 +8,8 @@ from hypertrader.utils.features import (
     compute_bollinger_bands,
     compute_supertrend,
     compute_anchored_vwap,
+    onchain_zscore,
+    order_skew,
 )
 
 
@@ -71,3 +73,15 @@ def test_compute_anchored_vwap():
     )
     vwap = compute_anchored_vwap(df, anchor="high")
     assert vwap.dropna().iloc[-1] > 0
+
+
+def test_onchain_zscore():
+    df = pd.DataFrame({"gas": [10] * 40})
+    z = onchain_zscore(df, window=10)
+    assert (z == 0).all()
+
+
+def test_order_skew():
+    book = {"bids": [[1, 2], [0.9, 1]], "asks": [[1.1, 1], [1.2, 2]]}
+    skew = order_skew(book, depth=2)
+    assert round(skew, 2) == 0.0

@@ -20,7 +20,11 @@ class Signal:
 
 
 def generate_signal(
-    data: pd.DataFrame, sentiment_score: float = 0.0, macro_score: float = 0.0
+    data: pd.DataFrame,
+    sentiment_score: float = 0.0,
+    macro_score: float = 0.0,
+    onchain_score: float = 0.0,
+    book_skew: float = 0.0,
 ) -> Signal:
     """Generate trading signal from OHLCV dataframe.
 
@@ -53,6 +57,8 @@ def generate_signal(
         and (pd.isna(rsi) or rsi < 70)
         and sentiment_score >= 0
         and macro_score >= 0
+        and onchain_score > 1.5
+        and book_skew > 0.2
         and price < upper
         and direction >= 0
         and (pd.isna(anchor_low) or price > anchor_low)
@@ -63,6 +69,8 @@ def generate_signal(
         and (pd.isna(rsi) or rsi > 30)
         and sentiment_score <= 0
         and macro_score <= 0
+        and onchain_score < -1.5
+        and book_skew < -0.2
         and price > lower
         and direction <= 0
         and (pd.isna(anchor_high) or price < anchor_high)
