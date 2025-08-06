@@ -40,3 +40,44 @@ def compute_macro_score(
         cb_z = compute_cardboard_zscore(cardboard)
         scores.append(1 if cb_z > 0 else -1)
     return sum(scores) / len(scores)
+
+
+def compute_risk_tolerance(
+    liquidity: pd.Series,
+    yield_spread: pd.Series,
+    vix: pd.Series,
+    silver: pd.Series,
+    gold: pd.Series,
+    window: int = 50,
+) -> pd.Series:
+    """Return series representing risk appetite derived from macro and micro indicators.
+
+    Parameters
+    ----------
+    liquidity : pd.Series
+        Global liquidity measure where rising values indicate increasing risk appetite.
+    yield_spread : pd.Series
+        Yield curve spread (e.g., 10Y-2Y) where higher values imply growth optimism.
+    vix : pd.Series
+        Volatility index; elevated readings indicate market fear.
+    silver : pd.Series
+        Silver price series.
+    gold : pd.Series
+        Gold price series used to compute the silver/gold ratio.
+    window : int, optional
+        Rolling window size for z-score normalisation, by default ``50``.
+
+    Returns
+    -------
+    pd.Series
+        Normalised risk tolerance score where positive values suggest "greed" and
+        negative values indicate "fear".
+    """
+
+    ratio = silver / gold
+    z_liq = (liquidity - liquidity.rolling(window).mean()) / liquidity.rolling(window).std()
+    z_yield = (yield_spread - yield_spread.rolling(window).mean()) / yield_spread.rolling(window).std()
+    z_vix = (vix - vix.rolling(window).mean()) / vix.rolling(window).std()
+    z_ratio = (ratio - ratio.rolling(window).mean()) / ratio.rolling(window).std()
+    score = (z_liq + z_yield - z_vix + z_ratio) / 4
+    return score.fillna(0)
