@@ -8,8 +8,27 @@ from hypertrader.utils.features import (
     compute_bollinger_bands,
     compute_supertrend,
     compute_anchored_vwap,
+    compute_vwap,
+    compute_obv,
+    compute_adx,
+    compute_stochastic,
+    compute_roc,
+    compute_twap,
+    compute_cumulative_delta,
+    compute_cci,
+    compute_keltner_channels,
+    compute_wavetrend,
+    compute_multi_rsi,
+    compute_vpvr_poc,
+    compute_ichimoku,
+    compute_parabolic_sar,
     onchain_zscore,
     order_skew,
+    dom_heatmap_ratio,
+    compute_exchange_netflow,
+    compute_volatility_cluster,
+    compute_fibonacci_retracements,
+    compute_ai_momentum,
 )
 
 
@@ -85,3 +104,113 @@ def test_order_skew():
     book = {"bids": [[1, 2], [0.9, 1]], "asks": [[1.1, 1], [1.2, 2]]}
     skew = order_skew(book, depth=2)
     assert round(skew, 2) == 0.0
+
+
+def test_dom_heatmap_ratio():
+    book = {"bids": [[1, 5]], "asks": [[1.1, 1]]}
+    ratio = dom_heatmap_ratio(book, layers=1)
+    assert ratio == 5.0
+
+
+def test_compute_vwap_and_obv():
+    df = pd.DataFrame(
+        {
+            "close": [1, 2, 1, 2],
+            "volume": [10, 20, 30, 40],
+        }
+    )
+    vwap = compute_vwap(df)
+    obv = compute_obv(df)
+    assert vwap.iloc[-1] > 0
+    assert obv.iloc[-1] != 0
+
+
+def test_compute_adx_and_stochastic():
+    df = pd.DataFrame(
+        {
+            "high": [1, 2, 3, 4, 5],
+            "low": [0, 1, 2, 3, 4],
+            "close": [0.5, 1.5, 2.5, 3.5, 4.5],
+        }
+    )
+    adx = compute_adx(df, period=2)
+    stoch = compute_stochastic(df, k_period=3, d_period=2)
+    assert len(adx) == len(df)
+    assert stoch["k"].iloc[-1] <= 100
+
+
+def test_compute_roc_and_twap():
+    series = pd.Series([1, 2, 3, 4, 5])
+    roc = compute_roc(series, period=1)
+    assert round(roc.iloc[-1], 2) == 25.0
+    df = pd.DataFrame({"close": [1, 2, 3]}, index=pd.date_range("2020", periods=3, freq="1T"))
+    twap = compute_twap(df)
+    assert twap.iloc[-1] == df["close"].expanding().mean().iloc[-1]
+
+
+def test_compute_cumulative_delta_and_cci_keltner():
+    df = pd.DataFrame(
+        {
+            "buy_vol": [1, 2, 3],
+            "sell_vol": [0, 1, 1],
+            "high": [1, 2, 3],
+            "low": [0, 1, 2],
+            "close": [0.5, 1.5, 2.5],
+        }
+    )
+    cum_delta = compute_cumulative_delta(df)
+    cci = compute_cci(df, period=2)
+    keltner = compute_keltner_channels(df, ema_period=2, atr_period=2)
+    assert cum_delta.iloc[-1] > 0
+    assert len(cci) == len(df)
+    assert list(keltner.columns) == ["ema", "upper", "lower"]
+
+
+def test_exchange_netflow_and_vol_cluster():
+    df = pd.DataFrame(
+        {
+            "close": [1, 1.1, 1.2, 1.15, 1.18],
+            "inflows": [10, 20, 15, 10, 5],
+            "outflows": [5, 15, 20, 30, 25],
+        }
+    )
+    net = compute_exchange_netflow(df)
+    assert net.iloc[-1] == 20
+    cluster = compute_volatility_cluster(df, window=2)
+    assert len(cluster) == len(df)
+
+
+def test_fibonacci_and_ai_momentum():
+    df = pd.DataFrame(
+        {
+            "high": [1, 2, 3, 4, 5],
+            "low": [0, 1, 1.5, 2, 2.5],
+        }
+    )
+    fib = compute_fibonacci_retracements(df, window=5)
+    assert "level_0.618" in fib.columns
+    series = pd.Series(range(10))
+    ai = compute_ai_momentum(series, period=5)
+    assert ai.iloc[-1] > 0
+
+
+def test_wavetrend_multi_rsi_vpvr_and_ichimoku_parabolic():
+    df = pd.DataFrame(
+        {
+            "high": [2, 3, 4, 5, 6],
+            "low": [1, 2, 3, 4, 5],
+            "close": [1.5, 2.5, 3.5, 4.5, 5.5],
+            "volume": [10, 20, 30, 40, 50],
+        },
+        index=pd.date_range("2020", periods=5, freq="1min"),
+    )
+    wt = compute_wavetrend(df)
+    assert len(wt) == len(df)
+    mrsi = compute_multi_rsi(df[["close"]])
+    assert mrsi.between(0, 100).all()
+    poc = compute_vpvr_poc(df, bins=2)
+    assert df["low"].min() <= poc <= df["high"].max()
+    ichi = compute_ichimoku(df)
+    assert "tenkan" in ichi.columns
+    sar = compute_parabolic_sar(df)
+    assert len(sar) == len(df)

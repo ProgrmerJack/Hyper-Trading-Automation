@@ -5,7 +5,10 @@ This project implements a simplified version of the trading automation system de
 ## Features
 
 - Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) or Yahoo Finance via [yfinance](https://github.com/ranaroussi/yfinance).
-- Compute technical indicators such as moving averages, EMA, SuperTrend, RSI, MACD and Bollinger Bands.
+- Compute technical indicators such as moving averages, EMA, SuperTrend, RSI, MACD, Bollinger Bands, VWAP, On-Balance Volume,
+  ADX, Stochastic oscillator, Rate of Change, TWAP, CCI, Keltner Channels, exchange net flow, volatility clustering index,
+  Fibonacci retracements, WaveTrend oscillator, multi-timeframe RSI, volume profile point of control, Ichimoku Cloud,
+  Parabolic SAR and a lightweight AI momentum signal.
 - Basic sentiment analysis from NewsAPI headlines using VADER.
 - Macro indicators from Yahoo Finance and FRED (DXY, interest rates, liquidity).
 - Enhanced strategy uses EMA crossovers, SuperTrend direction, RSI and Bollinger Band confirmation with optional sentiment filter for more reliable signals.
@@ -14,6 +17,9 @@ This project implements a simplified version of the trading automation system de
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
 - On-chain gas fee analytics and order book imbalance filters for higher quality crypto signals.
+- Depth-of-market heatmap ratios to flag potential iceberg orders.
+- Enhanced machine learning features include MACD histogram, VWAP distance, OBV, volatility clustering, exchange net flow,
+  WaveTrend, multi-timeframe RSI and distance from volume profile POC to better capture momentum, volume and on-chain pressure.
 
 ### Macro data
 

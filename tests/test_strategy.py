@@ -35,6 +35,7 @@ def test_generate_signal_with_onchain_and_skew():
         macro_score=0.5,
         onchain_score=2.0,
         book_skew=0.3,
+        heatmap_ratio=1.3,
     )
     assert sig.action == 'BUY'
 
@@ -49,5 +50,6 @@ def test_generate_signal_sell_with_onchain_and_skew():
         macro_score=-0.5,
         onchain_score=-2.0,
         book_skew=-0.3,
+        heatmap_ratio=0.7,
     )
     assert sig.action == 'SELL'

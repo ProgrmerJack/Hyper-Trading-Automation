@@ -8,6 +8,10 @@ from ..utils.features import (
     compute_bollinger_bands,
     compute_supertrend,
     compute_anchored_vwap,
+    compute_vwap,
+    compute_obv,
+    compute_wavetrend,
+    compute_multi_rsi,
 )
 
 
@@ -25,6 +29,7 @@ def generate_signal(
     macro_score: float = 0.0,
     onchain_score: float = 0.0,
     book_skew: float = 0.0,
+    heatmap_ratio: float = 1.0,
 ) -> Signal:
     """Generate trading signal from OHLCV dataframe.
 
@@ -48,8 +53,21 @@ def generate_signal(
     if {'high', 'low', 'volume'}.issubset(data.columns):
         anchor_high = compute_anchored_vwap(data, anchor='high').iloc[-1]
         anchor_low = compute_anchored_vwap(data, anchor='low').iloc[-1]
+        vwap = compute_vwap(data).iloc[-1]
+        obv = compute_obv(data).iloc[-1]
     else:
         anchor_high = anchor_low = float('nan')
+        vwap = obv = float('nan')
+
+    if {'high', 'low', 'close'}.issubset(data.columns):
+        wt = compute_wavetrend(data).iloc[-1]
+    else:
+        wt = float('nan')
+
+    if isinstance(data.index, pd.DatetimeIndex):
+        mrsi = compute_multi_rsi(data).iloc[-1]
+    else:
+        mrsi = float('nan')
 
     price = data['close'].iloc[-1]
     if (
@@ -59,9 +77,14 @@ def generate_signal(
         and macro_score >= 0
         and onchain_score > 1.5
         and book_skew > 0.2
+        and heatmap_ratio > 1.2
         and price < upper
         and direction >= 0
         and (pd.isna(anchor_low) or price > anchor_low)
+        and (pd.isna(vwap) or price > vwap)
+        and (pd.isna(obv) or obv > 0)
+        and (pd.isna(wt) or wt > -50)
+        and (pd.isna(mrsi) or mrsi < 30)
     ):
         return Signal('BUY')
     if (
@@ -71,9 +94,14 @@ def generate_signal(
         and macro_score <= 0
         and onchain_score < -1.5
         and book_skew < -0.2
+        and heatmap_ratio < 0.8
         and price > lower
         and direction <= 0
         and (pd.isna(anchor_high) or price < anchor_high)
+        and (pd.isna(vwap) or price < vwap)
+        and (pd.isna(obv) or obv < 0)
+        and (pd.isna(wt) or wt < 50)
+        and (pd.isna(mrsi) or mrsi > 70)
     ):
         return Signal('SELL')
     return Signal('HOLD')
