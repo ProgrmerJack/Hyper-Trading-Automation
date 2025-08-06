@@ -1,6 +1,54 @@
 import pandas as pd
 
 
+def onchain_zscore(df: pd.DataFrame, window: int = 30) -> pd.Series:
+    """Compute z-score of on-chain metrics such as gas fees.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing a ``gas`` column.
+    window : int, optional
+        Rolling window used for mean and standard deviation, by default 30.
+
+    Returns
+    -------
+    pd.Series
+        Z-score series where values above 1.5 indicate elevated activity.
+    """
+    if "gas" not in df:
+        raise ValueError("DataFrame must contain 'gas' column")
+    mean = df["gas"].rolling(window).mean()
+    std = df["gas"].rolling(window).std()
+    z = (df["gas"] - mean) / std
+    return z.fillna(0)
+
+
+def order_skew(order_book: dict, depth: int = 5) -> float:
+    """Compute order book imbalance between bid and ask volumes.
+
+    Parameters
+    ----------
+    order_book : dict
+        Mapping containing ``bids`` and ``asks`` lists as returned by CCXT.
+    depth : int, optional
+        Number of levels to aggregate, by default 5.
+
+    Returns
+    -------
+    float
+        Value in range [-1, 1] where positive indicates bid dominance.
+    """
+    bids = order_book.get("bids", [])[:depth]
+    asks = order_book.get("asks", [])[:depth]
+    bid_vol = sum(level[1] for level in bids)
+    ask_vol = sum(level[1] for level in asks)
+    total = bid_vol + ask_vol
+    if total == 0:
+        return 0.0
+    return (bid_vol - ask_vol) / total
+
+
 def compute_moving_average(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window).mean()
 

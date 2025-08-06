@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from hypertrader.data.fetch_data import fetch_ohlcv, fetch_yahoo_ohlcv
+from hypertrader.data.fetch_data import fetch_ohlcv, fetch_yahoo_ohlcv, fetch_order_book
 from hypertrader.data.macro import fetch_cardboard_production
 
 
@@ -44,3 +44,13 @@ def test_fetch_cardboard_production(monkeypatch):
     monkeypatch.setattr('hypertrader.data.macro.fetch_fred_series', dummy_fetch)
     series = fetch_cardboard_production('dummy')
     assert list(series) == [1, 2, 3]
+
+
+def test_fetch_order_book(monkeypatch):
+    class DummyExchange:
+        def fetch_order_book(self, symbol, limit=5):
+            return {"bids": [[1, 2]], "asks": [[1.1, 3]]}
+
+    monkeypatch.setattr('ccxt.binance', DummyExchange)
+    book = fetch_order_book('binance', 'BTC/USDT')
+    assert 'bids' in book and 'asks' in book

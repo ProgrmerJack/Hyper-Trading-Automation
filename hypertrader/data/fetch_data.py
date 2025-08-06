@@ -53,3 +53,10 @@ def fetch_yahoo_ohlcv(symbol: str, interval: str = '1h', lookback: str = '7d') -
     df.index.name = 'timestamp'
     df.rename(columns={c: c.lower() for c in df.columns}, inplace=True)
     return df[['open', 'high', 'low', 'close', 'volume']]
+
+
+def fetch_order_book(exchange_name: str, symbol: str, limit: int = 5) -> dict:
+    """Fetch order book data from an exchange using CCXT."""
+    exchange_class = getattr(ccxt, exchange_name)
+    exchange = exchange_class()
+    return exchange.fetch_order_book(symbol, limit=limit)
