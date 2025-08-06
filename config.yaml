@@ -1,0 +1,10 @@
+api_keys:
+  news: "YOUR_NEWS_API_KEY"
+  fred: "YOUR_FRED_API_KEY"
+trading:
+  symbol: "BTC-USD"
+  account_balance: 10000.0
+  risk_percent: 2.0
+backtest:
+  start: "2024-01-01"
+  end: "2024-06-01"

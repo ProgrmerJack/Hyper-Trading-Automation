@@ -7,3 +7,4 @@ fredapi
 scikit-learn
 pytest
 numpy
+PyYAML
