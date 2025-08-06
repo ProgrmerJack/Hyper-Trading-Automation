@@ -7,7 +7,7 @@ from hypertrader.bot import run
 
 def test_run_creates_signal(monkeypatch, tmp_path):
     def dummy_download(symbol, period='7d', interval='1h', progress=False):
-        idx = pd.date_range('2024-01-01', periods=200, freq='H')
+        idx = pd.date_range('2024-01-01', periods=200, freq='h')
         data = {
             'Open': [1]*200,
             'High': [1]*200,

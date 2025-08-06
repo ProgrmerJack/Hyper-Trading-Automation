@@ -7,6 +7,7 @@ from ..utils.features import (
     compute_rsi,
     compute_bollinger_bands,
     compute_supertrend,
+    compute_anchored_vwap,
 )
 
 
@@ -40,6 +41,12 @@ def generate_signal(
     else:
         direction = 0
 
+    if {'high', 'low', 'volume'}.issubset(data.columns):
+        anchor_high = compute_anchored_vwap(data, anchor='high').iloc[-1]
+        anchor_low = compute_anchored_vwap(data, anchor='low').iloc[-1]
+    else:
+        anchor_high = anchor_low = float('nan')
+
     price = data['close'].iloc[-1]
     if (
         short_ma > long_ma
@@ -48,6 +55,7 @@ def generate_signal(
         and macro_score >= 0
         and price < upper
         and direction >= 0
+        and (pd.isna(anchor_low) or price > anchor_low)
     ):
         return Signal('BUY')
     if (
@@ -57,6 +65,7 @@ def generate_signal(
         and macro_score <= 0
         and price > lower
         and direction <= 0
+        and (pd.isna(anchor_high) or price < anchor_high)
     ):
         return Signal('SELL')
     return Signal('HOLD')
