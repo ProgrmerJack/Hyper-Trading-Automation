@@ -10,6 +10,7 @@ from hypertrader.utils.features import (
     compute_anchored_vwap,
     onchain_zscore,
     order_skew,
+    dom_heatmap_ratio,
 )
 
 
@@ -85,3 +86,9 @@ def test_order_skew():
     book = {"bids": [[1, 2], [0.9, 1]], "asks": [[1.1, 1], [1.2, 2]]}
     skew = order_skew(book, depth=2)
     assert round(skew, 2) == 0.0
+
+
+def test_dom_heatmap_ratio():
+    book = {"bids": [[1, 5]], "asks": [[1.1, 1]]}
+    ratio = dom_heatmap_ratio(book, layers=1)
+    assert ratio == 5.0
