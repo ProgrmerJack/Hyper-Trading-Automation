@@ -23,8 +23,9 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
     features = pd.DataFrame(index=df.index)
     features["return"] = df["close"].pct_change().fillna(0)
     features["rsi"] = compute_rsi(df["close"]).fillna(0)
-    features["ema_fast"] = compute_ema(df["close"], 10).fillna(method="bfill")
-    features["ema_slow"] = compute_ema(df["close"], 30).fillna(method="bfill")
+    # Use backfill to handle initial NaN values without relying on deprecated API
+    features["ema_fast"] = compute_ema(df["close"], 10).bfill()
+    features["ema_slow"] = compute_ema(df["close"], 30).bfill()
     features["ema_diff"] = features["ema_fast"] - features["ema_slow"]
     return features.dropna()
 

@@ -89,3 +89,34 @@ def compute_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float = 3
         direction.iloc[i] = 1 if supertrend.iloc[i] < df['close'].iloc[i] else -1
 
     return pd.DataFrame({'supertrend': supertrend, 'direction': direction})
+
+
+def compute_anchored_vwap(df: pd.DataFrame, anchor: str = 'high') -> pd.Series:
+    """Compute Anchored VWAP from the last significant high or low.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing at least ``high``, ``low``, ``close`` and ``volume`` columns.
+    anchor : str, optional
+        Anchor point: ``'high'`` uses the location of the maximum high, ``'low'`` uses the
+        location of the minimum low. Default is ``'high'``.
+
+    Returns
+    -------
+    pd.Series
+        Series of anchored VWAP values with ``NaN`` before the anchor index.
+    """
+    if anchor not in {'high', 'low'}:
+        raise ValueError("anchor must be 'high' or 'low'")
+    if not {'high', 'low', 'close', 'volume'}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low, close, volume columns")
+
+    anchor_idx = df['high'].idxmax() if anchor == 'high' else df['low'].idxmin()
+    subset = df.loc[anchor_idx:]
+    pv = (subset['close'] * subset['volume']).cumsum()
+    v = subset['volume'].cumsum()
+    vwap = pv / v
+    anchored = pd.Series(index=df.index, dtype=float)
+    anchored.loc[anchor_idx:] = vwap
+    return anchored

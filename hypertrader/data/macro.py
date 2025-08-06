@@ -30,3 +30,8 @@ def fetch_interest_rate(api_key: str) -> pd.Series:
 def fetch_global_liquidity(api_key: str) -> pd.Series:
     """Fetch global liquidity proxy (M2 money stock)."""
     return fetch_fred_series('M2SL', api_key)
+
+
+def fetch_cardboard_production(api_key: str) -> pd.Series:
+    """Fetch cardboard production index used as an unconventional leading indicator."""
+    return fetch_fred_series('IPN32221S', api_key)

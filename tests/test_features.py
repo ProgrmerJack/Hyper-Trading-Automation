@@ -7,6 +7,7 @@ from hypertrader.utils.features import (
     compute_atr,
     compute_bollinger_bands,
     compute_supertrend,
+    compute_anchored_vwap,
 )
 
 
@@ -57,3 +58,16 @@ def test_compute_supertrend():
     st = compute_supertrend(df, period=2)
     assert list(st.columns) == ["supertrend", "direction"]
     assert len(st) == 4
+
+
+def test_compute_anchored_vwap():
+    df = pd.DataFrame(
+        {
+            "high": [1, 3, 2],
+            "low": [0, 1, 1],
+            "close": [1, 2, 3],
+            "volume": [10, 20, 30],
+        }
+    )
+    vwap = compute_anchored_vwap(df, anchor="high")
+    assert vwap.dropna().iloc[-1] > 0

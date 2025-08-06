@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 import yfinance as yf
@@ -92,7 +92,8 @@ def run(
         "volume": volume,
         "stop_loss": stop_loss,
         "take_profit": take_profit,
-        "timestamp": datetime.utcnow().isoformat(),
+        # use timezone-aware UTC timestamp to avoid deprecation warnings
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     Path(signal_path).write_text(json.dumps(payload))
 
