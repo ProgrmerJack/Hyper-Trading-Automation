@@ -13,6 +13,7 @@ This project implements a simplified version of the trading automation system de
 - Macro indicators from Yahoo Finance and FRED (DXY, interest rates, liquidity).
 - Enhanced strategy uses EMA crossovers, SuperTrend direction, RSI and Bollinger Band confirmation with optional sentiment filter for more reliable signals.
 - Optional machine learning model using logistic regression to predict price direction. Includes a helper to cross-validate accuracy.
+- Experimental transformer-based model and reinforcement-learning utilities for dynamic leverage selection.
 - Automatic position sizing based on account balance and risk percentage.
 - Additional risk controls including ATR-based trailing stops and drawdown throttling.
 - Dynamic leverage, compounding utilities and volatility-scaled stops for handling
@@ -26,6 +27,8 @@ This project implements a simplified version of the trading automation system de
 - Resilient data fetching with retry and optional exchange fallback.
 - Vectorized backtesting helper built on [vectorbt](https://github.com/vectorbt/vectorbt).
 - Backtester accepts leverage to simulate capital amplification and risk.
+- Multi-strategy helpers including basic arbitrage and market-making examples.
+- Prop-firm style funding simulator for evaluating strategy robustness.
 - Dockerfile for containerised deployment.
 
 ### Macro data
