@@ -15,9 +15,8 @@ This project implements a simplified version of the trading automation system de
 - Optional machine learning model using logistic regression to predict price direction. Includes a helper to cross-validate accuracy.
 - Experimental transformer-based model and reinforcement-learning utilities for dynamic leverage selection.
 - Automatic position sizing based on account balance and risk percentage.
-- Additional risk controls including ATR-based trailing stops and drawdown throttling.
-- Dynamic leverage, compounding utilities and volatility-scaled stops for handling
-  high-leverage scenarios.
+- Integrated risk controls including dynamic leverage, drawdown throttling,
+  trailing stops and volatility-scaled exits with persistent equity tracking.
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
 - On-chain gas fee analytics and order book imbalance filters for higher quality crypto signals.
