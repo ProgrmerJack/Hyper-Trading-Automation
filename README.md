@@ -11,10 +11,17 @@ This project implements a simplified version of the trading automation system de
 - Enhanced strategy uses EMA crossovers, SuperTrend direction, RSI and Bollinger Band confirmation with optional sentiment filter for more reliable signals.
 - Optional machine learning model using logistic regression to predict price direction. Includes a helper to cross-validate accuracy.
 - Automatic position sizing based on account balance and risk percentage.
+- Additional risk controls including ATR-based trailing stops and drawdown throttling.
+- Dynamic leverage, compounding utilities and volatility-scaled stops for handling
+  high-leverage scenarios.
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
 - On-chain gas fee analytics and order book imbalance filters for higher quality crypto signals.
 - Depth-of-market heatmap ratios to flag potential iceberg orders.
+- Resilient data fetching with retry and optional exchange fallback.
+- Vectorized backtesting helper built on [vectorbt](https://github.com/vectorbt/vectorbt).
+- Backtester accepts leverage to simulate capital amplification and risk.
+- Dockerfile for containerised deployment.
 
 ### Macro data
 
