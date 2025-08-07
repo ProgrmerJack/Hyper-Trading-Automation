@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
+from collections.abc import Sequence
 
 import pandas as pd
 
@@ -26,6 +27,7 @@ from .utils.risk import (
     drl_throttle,
     quantum_leverage_modifier,
 )
+from .utils.volatility import rank_symbols_by_volatility
 from .utils.monitoring import (
     start_metrics_server,
     monitor_latency,
@@ -47,9 +49,9 @@ from .data.macro import (
 from .utils.macro import compute_macro_score
 
 def run(
-    symbol: str,
+    symbol: str | Sequence[str],
     account_balance: float = 10000.0,
-    risk_percent: float = 2.0,
+    risk_percent: float = 5.0,
     news_api_key: str | None = None,
     fred_api_key: str | None = None,
     model_path: str | None = None,
@@ -60,6 +62,13 @@ def run(
     etherscan_api_key: str | None = None,
 ) -> None:
     """Run one iteration of the trading pipeline.
+
+    Parameters
+    ----------
+    symbol:
+        Either a single ticker symbol or a sequence of symbols.  When
+        multiple symbols are provided the bot selects the one with the
+        highest recent volatility.
 
     Fetches data, computes sentiment, generates a signal and writes it to JSON.
     """
@@ -73,6 +82,15 @@ def run(
         news_api_key = api_keys.get("news", news_api_key)
         fred_api_key = api_keys.get("fred", fred_api_key)
         etherscan_api_key = api_keys.get("etherscan", etherscan_api_key)
+
+    # If a sequence of symbols is provided, pick the most volatile one
+    if isinstance(symbol, Sequence) and not isinstance(symbol, str):
+        try:
+            ranked = rank_symbols_by_volatility(symbol)
+            symbol = ranked[0] if ranked else list(symbol)[0]
+        except Exception:
+            # fall back to first symbol if ranking fails
+            symbol = list(symbol)[0]
 
     logger = get_logger()
     start_time = time.time()
@@ -254,9 +272,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run autonomous trading bot")
-    parser.add_argument("symbol", help="Trading pair symbol e.g. BTC-USD")
+    parser.add_argument(
+        "symbol",
+        nargs="+",
+        help="One or more trading pair symbols e.g. BTC-USD ETH-USD",
+    )
     parser.add_argument("--account_balance", type=float, default=10000.0)
-    parser.add_argument("--risk_percent", type=float, default=2.0)
+    parser.add_argument("--risk_percent", type=float, default=5.0)
     parser.add_argument("--news_api_key")
     parser.add_argument("--fred_api_key")
     parser.add_argument("--model_path")
@@ -269,7 +291,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run(
-        args.symbol,
+        args.symbol if len(args.symbol) > 1 else args.symbol[0],
         account_balance=args.account_balance,
         risk_percent=args.risk_percent,
         news_api_key=args.news_api_key,
