@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 def onchain_zscore(df: pd.DataFrame, window: int = 30) -> pd.Series:
@@ -78,6 +79,42 @@ def dom_heatmap_ratio(order_book: dict, layers: int = 10) -> float:
     if ask_vol == 0:
         return float("inf") if bid_vol > 0 else 1.0
     return bid_vol / ask_vol
+
+
+def compute_vwap(df: pd.DataFrame) -> pd.Series:
+    """Compute the Volume Weighted Average Price (VWAP).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing ``close`` and ``volume`` columns.
+
+    Returns
+    -------
+    pd.Series
+        Series of cumulative VWAP values.
+    """
+    if not {"close", "volume"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain close and volume columns")
+    pv = (df["close"] * df["volume"]).cumsum()
+    vol = df["volume"].cumsum()
+    return pv / vol
+
+
+def compute_obv(df: pd.DataFrame) -> pd.Series:
+    """Compute On-Balance Volume indicator."""
+    if not {"close", "volume"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain close and volume columns")
+    obv = pd.Series(index=df.index, dtype=float)
+    obv.iloc[0] = 0
+    for i in range(1, len(df)):
+        if df["close"].iloc[i] > df["close"].iloc[i - 1]:
+            obv.iloc[i] = obv.iloc[i - 1] + df["volume"].iloc[i]
+        elif df["close"].iloc[i] < df["close"].iloc[i - 1]:
+            obv.iloc[i] = obv.iloc[i - 1] - df["volume"].iloc[i]
+        else:
+            obv.iloc[i] = obv.iloc[i - 1]
+    return obv
 
 
 def compute_moving_average(series: pd.Series, window: int) -> pd.Series:
@@ -199,3 +236,305 @@ def compute_anchored_vwap(df: pd.DataFrame, anchor: str = 'high') -> pd.Series:
     anchored = pd.Series(index=df.index, dtype=float)
     anchored.loc[anchor_idx:] = vwap
     return anchored
+
+
+def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Compute Average Directional Index (ADX)."""
+    if not {"high", "low", "close"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low and close columns")
+
+    up_move = df["high"].diff()
+    down_move = df["low"].shift() - df["low"]
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+    tr = pd.concat(
+        [
+            df["high"] - df["low"],
+            (df["high"] - df["close"].shift()).abs(),
+            (df["low"] - df["close"].shift()).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+
+    atr = tr.rolling(window=period).mean()
+    plus_di = 100 * pd.Series(plus_dm).rolling(window=period).mean() / atr
+    minus_di = 100 * pd.Series(minus_dm).rolling(window=period).mean() / atr
+    dx = (plus_di - minus_di).abs() / (plus_di + minus_di) * 100
+    adx = dx.rolling(window=period).mean()
+    return adx
+
+
+def compute_stochastic(
+    df: pd.DataFrame, k_period: int = 14, d_period: int = 3
+) -> pd.DataFrame:
+    """Compute Stochastic Oscillator values."""
+    if not {"high", "low", "close"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low and close columns")
+    low_min = df["low"].rolling(window=k_period).min()
+    high_max = df["high"].rolling(window=k_period).max()
+    k = 100 * (df["close"] - low_min) / (high_max - low_min)
+    d = k.rolling(window=d_period).mean()
+    return pd.DataFrame({"k": k, "d": d})
+
+
+def compute_roc(series: pd.Series, period: int = 5) -> pd.Series:
+    """Compute Rate of Change indicator."""
+    return series.pct_change(periods=period) * 100
+
+
+def compute_twap(df: pd.DataFrame) -> pd.Series:
+    """Compute Time Weighted Average Price (TWAP)."""
+    if "close" not in df:
+        raise ValueError("DataFrame must contain close column")
+    return df["close"].expanding().mean()
+
+
+def compute_cumulative_delta(df: pd.DataFrame) -> pd.Series:
+    """Compute cumulative volume delta from buy and sell volumes."""
+    if not {"buy_vol", "sell_vol"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain buy_vol and sell_vol columns")
+    delta = df["buy_vol"] - df["sell_vol"]
+    return delta.cumsum()
+
+
+def compute_cci(df: pd.DataFrame, period: int = 20) -> pd.Series:
+    """Compute Commodity Channel Index (CCI)."""
+    if not {"high", "low", "close"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low and close columns")
+    tp = (df["high"] + df["low"] + df["close"]) / 3
+    sma = tp.rolling(window=period).mean()
+    mad = tp.rolling(window=period).apply(lambda x: np.abs(x - x.mean()).mean())
+    cci = (tp - sma) / (0.015 * mad)
+    return cci
+
+
+def compute_keltner_channels(
+    df: pd.DataFrame, ema_period: int = 20, atr_period: int = 10, multiplier: float = 2.0
+) -> pd.DataFrame:
+    """Compute Keltner Channels for a price series."""
+    if not {"high", "low", "close"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low and close columns")
+    ema = df["close"].ewm(span=ema_period, adjust=False).mean()
+    atr = compute_atr(df, period=atr_period)
+    upper = ema + multiplier * atr
+    lower = ema - multiplier * atr
+    return pd.DataFrame({"ema": ema, "upper": upper, "lower": lower})
+
+
+def compute_exchange_netflow(df: pd.DataFrame) -> pd.Series:
+    """Compute net flow from exchange inflows and outflows.
+
+    The function expects ``inflows`` and ``outflows`` columns and returns the
+    difference ``outflows - inflows`` which can be used to gauge supply and
+    demand pressure on an exchange.
+    """
+    if not {"inflows", "outflows"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain inflows and outflows columns")
+    return df["outflows"] - df["inflows"]
+
+
+def compute_volatility_cluster(df: pd.DataFrame, window: int = 10) -> pd.Series:
+    """Return a simple volatility clustering index.
+
+    Calculates rolling variance of returns and marks periods where variance is
+    more than one standard deviation above its rolling mean. The resulting
+    series is the density of such high-volatility observations within the
+    specified window and ranges between 0 and 1.
+    """
+    if "close" not in df:
+        raise ValueError("DataFrame must contain close column")
+    returns = df["close"].pct_change()
+    var = returns.rolling(window).var()
+    mean_var = var.rolling(window).mean()
+    std_var = var.rolling(window).std()
+    spikes = (var > (mean_var + std_var)).astype(float)
+    cluster = spikes.rolling(window).mean()
+    return cluster.fillna(0)
+
+
+def compute_fibonacci_retracements(
+    df: pd.DataFrame, window: int = 50
+) -> pd.DataFrame:
+    """Compute Fibonacci retracement levels for a rolling window.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with ``high`` and ``low`` columns.
+    window : int, optional
+        Rolling window to determine swing high and low, by default ``50``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns for each common Fibonacci level from 23.6% to 78.6%.
+    """
+    if not {"high", "low"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high and low columns")
+    swing_high = df["high"].rolling(window).max()
+    swing_low = df["low"].rolling(window).min()
+    diff = swing_high - swing_low
+    levels = {
+        "level_0.236": swing_low + diff * 0.236,
+        "level_0.382": swing_low + diff * 0.382,
+        "level_0.5": swing_low + diff * 0.5,
+        "level_0.618": swing_low + diff * 0.618,
+        "level_0.786": swing_low + diff * 0.786,
+    }
+    return pd.DataFrame(levels)
+
+
+def compute_ai_momentum(series: pd.Series, period: int = 10) -> pd.Series:
+    """Estimate momentum using a simple linear regression slope.
+
+    This lightweight proxy for a learning-based indicator fits a first-degree
+    polynomial over the last ``period`` closing prices and returns the slope as
+    a momentum estimate.
+    """
+    if len(series) < period:
+        raise ValueError("Series must be at least as long as the period")
+
+    def _slope(window_values: pd.Series) -> float:
+        y = window_values.values
+        x = np.arange(len(y))
+        return float(np.polyfit(x, y, 1)[0])
+
+    return series.rolling(window=period).apply(_slope, raw=False)
+
+
+def compute_wavetrend(
+    df: pd.DataFrame, channel_len: int = 10, avg_len: int = 21
+) -> pd.Series:
+    """Compute WaveTrend oscillator used in many TradingView scripts.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing ``high``, ``low`` and ``close`` columns.
+    channel_len : int, optional
+        Length of the EMA channel, by default ``10``.
+    avg_len : int, optional
+        Length of the signal smoothing average, by default ``21``.
+
+    Returns
+    -------
+    pd.Series
+        WaveTrend oscillator values.
+    """
+    if not {"high", "low", "close"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low and close columns")
+    ap = (df["high"] + df["low"] + df["close"]) / 3
+    esa = ap.ewm(span=channel_len, adjust=False).mean()
+    d = (ap - esa).abs().ewm(span=channel_len, adjust=False).mean()
+    ci = (ap - esa) / (0.015 * d)
+    wt = ci.ewm(span=avg_len, adjust=False).mean()
+    return wt
+
+
+def compute_multi_rsi(
+    df: pd.DataFrame, periods: list[int] | None = None, weights: list[float] | None = None
+) -> pd.Series:
+    """Compute weighted RSI across multiple timeframes.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with a datetime index and a ``close`` column.
+    periods : list[int], optional
+        Timeframe lengths in minutes, by default ``[5, 15, 60]``.
+    weights : list[float], optional
+        Weighting for each timeframe, defaults to equal weighting.
+
+    Returns
+    -------
+    pd.Series
+        Weighted RSI series aligned to the original index.
+    """
+    if "close" not in df:
+        raise ValueError("DataFrame must contain close column")
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame index must be a DatetimeIndex")
+    periods = periods or [5, 15, 60]
+    weights = weights or [1 / len(periods)] * len(periods)
+    if len(periods) != len(weights):
+        raise ValueError("periods and weights must be the same length")
+
+    rsi_total = pd.Series(0.0, index=df.index)
+    for p, w in zip(periods, weights):
+        resampled = df["close"].resample(f"{p}min").last()
+        if len(resampled) < 2:
+            rsi = pd.Series(50.0, index=resampled.index)
+        else:
+            rsi_period = min(14, len(resampled) - 1)
+            rsi = compute_rsi(resampled, period=rsi_period)
+        rsi_total += rsi.reindex(df.index, method="ffill") * w
+    return rsi_total
+
+
+def compute_vpvr_poc(df: pd.DataFrame, bins: int = 50) -> float:
+    """Return the volume point of control from Volume Profile Visible Range."""
+    if not {"close", "volume"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain close and volume columns")
+    hist, edges = np.histogram(df["close"], bins=bins, weights=df["volume"])
+    idx = int(hist.argmax())
+    return float((edges[idx] + edges[idx + 1]) / 2)
+
+
+def compute_ichimoku(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute basic Ichimoku Cloud components."""
+    if not {"high", "low", "close"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high, low and close columns")
+    tenkan = (df["high"].rolling(9).max() + df["low"].rolling(9).min()) / 2
+    kijun = (df["high"].rolling(26).max() + df["low"].rolling(26).min()) / 2
+    senkou_a = ((tenkan + kijun) / 2).shift(26)
+    senkou_b = ((df["high"].rolling(52).max() + df["low"].rolling(52).min()) / 2).shift(26)
+    chikou = df["close"].shift(-26)
+    return pd.DataFrame(
+        {
+            "tenkan": tenkan,
+            "kijun": kijun,
+            "senkou_a": senkou_a,
+            "senkou_b": senkou_b,
+            "chikou": chikou,
+        }
+    )
+
+
+def compute_parabolic_sar(
+    df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2
+) -> pd.Series:
+    """Compute Parabolic SAR indicator."""
+    if not {"high", "low"}.issubset(df.columns):
+        raise ValueError("DataFrame must contain high and low columns")
+    high = df["high"].values
+    low = df["low"].values
+    sar = np.zeros(len(df))
+    uptrend = True
+    ep = high[0]
+    af = step
+    sar[0] = low[0]
+    for i in range(1, len(df)):
+        prev_sar = sar[i - 1]
+        sar[i] = prev_sar + af * (ep - prev_sar)
+        if uptrend:
+            sar[i] = min(sar[i], low[i - 1], low[i])
+            if high[i] > ep:
+                ep = high[i]
+                af = min(af + step, max_step)
+            if low[i] < sar[i]:
+                uptrend = False
+                sar[i] = ep
+                ep = low[i]
+                af = step
+        else:
+            sar[i] = max(sar[i], high[i - 1], high[i])
+            if low[i] < ep:
+                ep = low[i]
+                af = min(af + step, max_step)
+            if high[i] > sar[i]:
+                uptrend = True
+                sar[i] = ep
+                ep = high[i]
+                af = step
+    return pd.Series(sar, index=df.index)
