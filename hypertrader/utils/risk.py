@@ -210,6 +210,46 @@ def drl_throttle(state: tuple[float, float]) -> float:
         return float(max(0.1, 1 - drawdown - vol))
 
 
+def quantum_leverage_modifier(
+    features: Sequence[float], n_qubits: int = 4, shots: int = 1000
+) -> float:
+    """Estimate a leverage modifier using a quantum circuit.
+
+    The function attempts to leverage :mod:`qiskit` to derive a value between
+    ``0`` and ``1`` that can be used to scale leverage. If :mod:`qiskit` is not
+    installed, a neutral factor of ``1.0`` is returned.
+
+    Parameters
+    ----------
+    features : Sequence[float]
+        Arbitrary feature vector representing market state.
+    n_qubits : int, default ``4``
+        Number of qubits for the circuit. Higher values increase resolution.
+    shots : int, default ``1000``
+        Number of circuit executions for sampling.
+
+    Returns
+    -------
+    float
+        A scaling factor in the range ``[0, 1]``.
+    """
+
+    if not features:
+        return 1.0
+    try:  # pragma: no cover - optional dependency
+        from qiskit import Aer, execute
+        from qiskit.circuit.library import EfficientSU2
+    except Exception:
+        return 1.0
+
+    qc = EfficientSU2(n_qubits)
+    backend = Aer.get_backend("aer_simulator")
+    result = execute(qc, backend, shots=shots).result()
+    counts = result.get_counts()
+    optimal = max(counts, key=counts.get)
+    return int(optimal, 2) / (2 ** n_qubits - 1)
+
+
 def shap_explain(model, features):
     """Compute SHAP values for a model prediction.
 
@@ -232,5 +272,6 @@ __all__ = [
     "volatility_scaled_stop",
     "ai_var",
     "drl_throttle",
+    "quantum_leverage_modifier",
     "shap_explain",
 ]

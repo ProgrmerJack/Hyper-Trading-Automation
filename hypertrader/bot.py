@@ -23,6 +23,7 @@ from .utils.risk import (
     volatility_scaled_stop,
     ai_var,
     drl_throttle,
+    quantum_leverage_modifier,
 )
 from .utils.monitoring import start_metrics_server, monitor_latency
 from .utils.logging import get_logger, log_json
@@ -171,6 +172,8 @@ def run(
         leverage = dynamic_leverage(
             account_balance, risk_percent * allocation_factor, volatility
         )
+        q_factor = quantum_leverage_modifier([drawdown, volatility])
+        leverage *= max(0.1, q_factor)
 
     if kill:
         sig.action = "HOLD"

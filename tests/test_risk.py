@@ -6,6 +6,7 @@ from hypertrader.utils.risk import (
     dynamic_leverage,
     compound_capital,
     volatility_scaled_stop,
+    quantum_leverage_modifier,
 )
 
 
@@ -41,3 +42,8 @@ def test_compound_and_vol_stop():
     assert round(capital, 2) == 102
     stop = volatility_scaled_stop(100, vix=20)
     assert round(stop, 2) == 98.8
+
+
+def test_quantum_leverage_modifier_fallback():
+    factor = quantum_leverage_modifier([0.1, 0.2])
+    assert factor == 1.0
