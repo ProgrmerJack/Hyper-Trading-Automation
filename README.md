@@ -17,6 +17,8 @@ This project implements a simplified version of the trading automation system de
 - Automatic position sizing based on account balance and risk percentage.
 - Integrated risk controls including dynamic leverage, drawdown throttling,
   trailing stops and volatility-scaled exits with persistent equity tracking.
+- Advanced risk utilities providing AI-driven historical VaR, optional
+  reinforcement-learning based throttling and SHAP explainability helpers.
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
 - On-chain gas fee analytics and order book imbalance filters for higher quality crypto signals.
@@ -24,11 +26,16 @@ This project implements a simplified version of the trading automation system de
 - Enhanced machine learning features include MACD histogram, VWAP distance, OBV, volatility clustering, exchange net flow,
   WaveTrend, multi-timeframe RSI and distance from volume profile POC to better capture momentum, volume and on-chain pressure.
 - Resilient data fetching with retry and optional exchange fallback.
+- Optional WebSocket data ingestion via ``ccxt.pro`` and a minimal FIX
+  execution skeleton for low-latency broker connectivity.
 - Vectorized backtesting helper built on [vectorbt](https://github.com/vectorbt/vectorbt).
 - Backtester accepts leverage to simulate capital amplification and risk.
 - Multi-strategy helpers including basic arbitrage and market-making examples.
 - Prop-firm style funding simulator for evaluating strategy robustness.
 - Dockerfile for containerised deployment.
+- Prometheus metrics and IsolationForest anomaly detection utilities for
+  monitoring and compliance.
+- Configuration schemas validated with ``pydantic``.
 
 ### Macro data
 

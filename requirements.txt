@@ -10,3 +10,5 @@ numpy
 PyYAML
 tenacity
 vectorbt
+pydantic
+prometheus_client
