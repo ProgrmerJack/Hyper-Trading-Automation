@@ -26,6 +26,9 @@ from ..utils.features import (
     compute_vpvr_poc,
 )
 
+from ..utils.macro import compute_risk_tolerance
+
+
 
 @dataclass
 class MLSignal:
@@ -63,6 +66,18 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
         features["poc_diff"] = (df["close"] - poc).fillna(0)
     if {"inflows", "outflows"}.issubset(df.columns):
         features["net_flow"] = compute_exchange_netflow(df).fillna(0)
+
+    required_cols = {"liquidity", "yield_spread", "vix", "silver", "gold"}
+    if required_cols.issubset(df.columns):
+        risk = compute_risk_tolerance(
+            df["liquidity"],
+            df["yield_spread"],
+            df["vix"],
+            df["silver"],
+            df["gold"],
+        )
+        features["risk_tolerance"] = risk
+
     return features.dropna()
 
 

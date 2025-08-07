@@ -44,3 +44,25 @@ def test_extract_features_contains_new_indicators():
     feat = extract_features(df)
     for col in {"wavetrend", "multi_rsi", "poc_diff"}:
         assert col in feat.columns
+    score = cross_validate_model(df, cv=3)
+    assert 0 <= score <= 1
+
+
+def test_extract_features_with_risk_tolerance():
+    df = pd.DataFrame(
+        {
+            "open": [1] * 60,
+            "high": [1] * 60,
+            "low": [1] * 60,
+            "close": list(range(60)),
+            "volume": [1] * 60,
+            "liquidity": range(60),
+            "yield_spread": range(60),
+            "vix": [20] * 60,
+            "silver": range(1, 61),
+            "gold": [100] * 60,
+        },
+        index=pd.date_range("2024-01-01", periods=60, freq="h"),
+    )
+    feat = extract_features(df)
+    assert "risk_tolerance" in feat.columns
