@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Any
 
 import pandas as pd
 
@@ -25,7 +26,13 @@ from .utils.risk import (
     drl_throttle,
     quantum_leverage_modifier,
 )
-from .utils.monitoring import start_metrics_server, monitor_latency
+from .utils.monitoring import (
+    start_metrics_server,
+    monitor_latency,
+    monitor_equity,
+    monitor_var,
+    detect_anomalies,
+)
 from .utils.logging import get_logger, log_json
 from .strategies.indicator_signals import generate_signal
 from .strategies.ml_strategy import ml_signal
@@ -78,12 +85,13 @@ def run(
     if state_path is None:
         state_path = Path(signal_path).with_name("state.json")
     state_file = Path(state_path)
-    state: dict[str, float] = {}
+    state: dict[str, Any] = {}
     if state_file.exists():
         try:
             state = json.loads(state_file.read_text())
         except json.JSONDecodeError:
             state = {}
+    latencies: list[float] = state.get("latencies", [])  # historical latencies for anomaly detection
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
@@ -211,9 +219,18 @@ def run(
         "var": var,
     }
     Path(signal_path).write_text(json.dumps(payload))
-
     latency = time.time() - start_time
     monitor_latency(latency)
+    monitor_equity(account_balance)
+    monitor_var(var)
+
+    latencies.append(latency)
+    latencies = latencies[-50:]
+    if len(latencies) > 5:
+        labels = detect_anomalies(latencies)
+        if labels[-1] == -1:
+            log_json(logger, "latency_anomaly", latency=latency)
+
     log_json(
         logger,
         "signal_generated",
@@ -229,6 +246,7 @@ def run(
 
     state["peak_equity"] = max(peak_equity, account_balance)
     state["equity"] = account_balance
+    state["latencies"] = latencies
     state_file.write_text(json.dumps(state))
 
 

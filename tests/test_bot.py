@@ -28,6 +28,11 @@ def test_run_creates_signal(monkeypatch, tmp_path):
     assert signal_file.exists()
     data = json.loads(signal_file.read_text())
     assert 'action' in data
+    state_file = signal_file.with_name('state.json')
+    assert state_file.exists()
+    state = json.loads(state_file.read_text())
+    assert state['equity'] == 10000
+    assert len(state['latencies']) == 1
 
 
 def test_kill_switch_halts_trading(monkeypatch, tmp_path):
@@ -58,6 +63,8 @@ def test_kill_switch_halts_trading(monkeypatch, tmp_path):
 
     data = json.loads(signal_file.read_text())
     assert data['action'] == 'HOLD'
+    state = json.loads(state_file.read_text())
+    assert len(state['latencies']) == 1
 
 
 def test_run_uses_onchain_and_orderbook(monkeypatch, tmp_path):
