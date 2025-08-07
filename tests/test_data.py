@@ -19,6 +19,22 @@ def test_fetch_ohlcv(monkeypatch):
     assert len(df) == 2
 
 
+def test_fetch_ohlcv_with_fallback(monkeypatch):
+    class PrimaryExchange:
+        def fetch_ohlcv(self, symbol, timeframe='1h', since=None, limit=1000):
+            raise RuntimeError("primary fail")
+
+    class FallbackExchange:
+        def fetch_ohlcv(self, symbol, timeframe='1h', since=None, limit=1000):
+            return [[0, 1, 1, 1, 1, 1]]
+
+    monkeypatch.setattr('ccxt.binance', PrimaryExchange)
+    monkeypatch.setattr('ccxt.coinbase', FallbackExchange)
+
+    df = fetch_ohlcv('binance', 'BTC/USDT', fallback='coinbase')
+    assert not df.empty
+
+
 def test_fetch_yahoo_ohlcv(monkeypatch):
     def dummy_download(symbol, period='7d', interval='1h', progress=False):
         idx = pd.date_range('2024-01-01', periods=2, freq='h')

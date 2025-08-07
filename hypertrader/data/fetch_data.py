@@ -3,11 +3,27 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from ..utils.net import fetch_with_retry
 
 
-def fetch_ohlcv(exchange_name: str, symbol: str, timeframe: str = '1h', since: int | None = None, limit: int = 1000) -> pd.DataFrame:
-    """Fetch OHLCV data from the given exchange using CCXT.
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+def _ccxt_fetch(exchange_name: str, symbol: str, timeframe: str, since: int | None, limit: int) -> list[list[float]]:
+    exchange_class = getattr(ccxt, exchange_name)
+    exchange = exchange_class()
+    return exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit)
+
+
+def fetch_ohlcv(
+    exchange_name: str,
+    symbol: str,
+    timeframe: str = "1h",
+    since: int | None = None,
+    limit: int = 1000,
+    fallback: str | None = None,
+) -> pd.DataFrame:
+    """Fetch OHLCV data from the given exchange using CCXT with retry and fallback.
 
     Parameters
     ----------
@@ -22,14 +38,20 @@ def fetch_ohlcv(exchange_name: str, symbol: str, timeframe: str = '1h', since: i
     limit : int
         Number of candles to retrieve.
 
+    fallback : str | None
+        Optional fallback exchange name to use if the primary fails.
+
     Returns
     -------
     pandas.DataFrame
         DataFrame indexed by datetime with columns [open, high, low, close, volume].
     """
-    exchange_class = getattr(ccxt, exchange_name)
-    exchange = exchange_class()
-    ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit)
+    try:
+        ohlcv = _ccxt_fetch(exchange_name, symbol, timeframe, since, limit)
+    except Exception:
+        if not fallback:
+            raise
+        ohlcv = _ccxt_fetch(fallback, symbol, timeframe, since, limit)
     df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     df.set_index('timestamp', inplace=True)
