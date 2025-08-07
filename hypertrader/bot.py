@@ -8,7 +8,12 @@ import pandas as pd
 
 from .config import load_config
 from .utils.sentiment import fetch_news_headlines, compute_sentiment_score
-from .utils.features import compute_atr
+from .utils.features import (
+    compute_atr,
+    onchain_zscore,
+    order_skew,
+    dom_heatmap_ratio,
+)
 from .utils.risk import (
     calculate_position_size,
     dynamic_leverage,
@@ -16,12 +21,16 @@ from .utils.risk import (
     drawdown_throttle,
     kill_switch,
     volatility_scaled_stop,
+    ai_var,
+    drl_throttle,
 )
+from .utils.monitoring import start_metrics_server, monitor_latency
 from .utils.logging import get_logger, log_json
 from .strategies.indicator_signals import generate_signal
 from .strategies.ml_strategy import ml_signal
 
-from .data.fetch_data import fetch_yahoo_ohlcv
+from .data.fetch_data import fetch_yahoo_ohlcv, fetch_order_book
+from .data.onchain import fetch_eth_gas_fees
 from .data.macro import (
     fetch_dxy,
     fetch_interest_rate,
@@ -39,6 +48,8 @@ def run(
     signal_path: str = "signal.json",
     config_path: str | None = None,
     state_path: str | None = None,
+    exchange: str | None = None,
+    etherscan_api_key: str | None = None,
 ) -> None:
     """Run one iteration of the trading pipeline.
 
@@ -49,12 +60,18 @@ def run(
         symbol = cfg.get("trading", {}).get("symbol", symbol)
         account_balance = cfg.get("trading", {}).get("account_balance", account_balance)
         risk_percent = cfg.get("trading", {}).get("risk_percent", risk_percent)
+        exchange = cfg.get("trading", {}).get("exchange", exchange)
         api_keys = cfg.get("api_keys", {})
         news_api_key = api_keys.get("news", news_api_key)
         fred_api_key = api_keys.get("fred", fred_api_key)
+        etherscan_api_key = api_keys.get("etherscan", etherscan_api_key)
 
     logger = get_logger()
     start_time = time.time()
+    try:
+        start_metrics_server()
+    except Exception as exc:
+        log_json(logger, "metrics_server_failed", error=str(exc))
 
     # Determine location of persistent risk state
     if state_path is None:
@@ -79,6 +96,27 @@ def run(
     except Exception as exc:
         log_json(logger, "data_fetch_failed", symbol=symbol, error=str(exc))
         return
+
+    # On-chain metrics
+    onchain_score = 0.0
+    if etherscan_api_key is not None:
+        try:
+            gas_df = fetch_eth_gas_fees(etherscan_api_key)
+            onchain_score = float(onchain_zscore(gas_df).iloc[-1])
+        except Exception as exc:
+            log_json(logger, "onchain_fetch_failed", error=str(exc))
+
+    # Order book metrics
+    book_skew = 0.0
+    heatmap_ratio = 1.0
+    if exchange:
+        try:
+            order_book = fetch_order_book(exchange, symbol.replace('-', '/'))
+            book_skew = order_skew(order_book)
+            heatmap_ratio = dom_heatmap_ratio(order_book)
+        except Exception as exc:
+            log_json(logger, "order_book_fetch_failed", error=str(exc))
+
     headlines: list[str] = []
     if news_api_key:
         try:
@@ -98,7 +136,14 @@ def run(
             log_json(logger, "macro_fetch_failed", error=str(exc))
             macro_score = 0.0
 
-    sig = generate_signal(data, sentiment, macro_score)
+    sig = generate_signal(
+        data,
+        sentiment,
+        macro_score,
+        onchain_score,
+        book_skew,
+        heatmap_ratio,
+    )
 
     if model_path:
         try:
@@ -117,6 +162,10 @@ def run(
     volatility = float(data["close"].pct_change().rolling(10).std().iloc[-1])
     if pd.isna(volatility) or volatility <= 0:
         volatility = 0.02
+    rl_factor = drl_throttle((drawdown, volatility))
+    returns = data["close"].pct_change().dropna().tolist()
+    var = ai_var(returns) if returns else 0.0
+    allocation_factor *= rl_factor * max(0.1, 1 - var)
     leverage = 0.0
     if not kill:
         leverage = dynamic_leverage(
@@ -156,10 +205,12 @@ def run(
         # use timezone-aware UTC timestamp to avoid deprecation warnings
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "leverage": leverage,
+        "var": var,
     }
     Path(signal_path).write_text(json.dumps(payload))
 
     latency = time.time() - start_time
+    monitor_latency(latency)
     log_json(
         logger,
         "signal_generated",
@@ -170,6 +221,7 @@ def run(
         slippage=0.0,
         leverage=leverage,
         drawdown=drawdown,
+        var=var,
     )
 
     state["peak_equity"] = max(peak_equity, account_balance)
@@ -191,6 +243,8 @@ if __name__ == "__main__":
     parser.add_argument("--signal_path", default="signal.json")
     parser.add_argument("--config")
     parser.add_argument("--state_path")
+    parser.add_argument("--exchange")
+    parser.add_argument("--etherscan_api_key")
     args = parser.parse_args()
 
     run(
@@ -203,5 +257,7 @@ if __name__ == "__main__":
         signal_path=args.signal_path,
         config_path=args.config,
         state_path=args.state_path,
+        exchange=args.exchange,
+        etherscan_api_key=args.etherscan_api_key,
     )
 
