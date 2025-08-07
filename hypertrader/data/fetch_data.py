@@ -2,6 +2,8 @@ import ccxt
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
+from importlib import import_module
+from typing import AsyncIterator, Dict, Any
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -82,3 +84,38 @@ def fetch_order_book(exchange_name: str, symbol: str, limit: int = 5) -> dict:
     exchange_class = getattr(ccxt, exchange_name)
     exchange = exchange_class()
     return exchange.fetch_order_book(symbol, limit=limit)
+
+
+async def websocket_ingest(symbol: str, exchange_name: str = "binance") -> AsyncIterator[Dict[str, Any]]:
+    """Stream ticker updates via WebSocket using ``ccxt.pro``.
+
+    Parameters
+    ----------
+    symbol : str
+        Trading pair symbol like ``'BTC/USDT'``.
+    exchange_name : str, default ``"binance"``
+        Exchange name supported by ``ccxt.pro``.
+
+    Yields
+    ------
+    dict
+        Raw ticker information from the exchange.
+
+    Notes
+    -----
+    Requires the optional ``ccxt.pro`` package. A minimal example:
+
+    >>> async for tick in websocket_ingest('BTC/USDT'):
+    ...     print(tick['last'])
+    """
+
+    try:  # pragma: no cover - optional dependency
+        ccxtpro = import_module("ccxt.pro")
+    except Exception as exc:  # pragma: no cover - network/optional
+        raise ImportError("ccxt.pro is required for websocket_ingest") from exc
+
+    exchange_class = getattr(ccxtpro, exchange_name)
+    exchange = exchange_class()
+    while True:
+        ticker = await exchange.watch_ticker(symbol)
+        yield ticker

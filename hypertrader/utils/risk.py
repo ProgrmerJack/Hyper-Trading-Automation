@@ -1,6 +1,11 @@
 """Risk management utilities."""
 from __future__ import annotations
 
+from importlib import import_module
+from typing import Sequence
+
+import numpy as np
+
 
 def calculate_position_size(account_balance: float, risk_percent: float, entry_price: float, stop_loss_price: float) -> float:
     """Calculate position size based on risk percentage and stop loss distance."""
@@ -131,6 +136,92 @@ def volatility_scaled_stop(
     return entry_price - distance if long else entry_price + distance
 
 
+def ai_var(returns: Sequence[float], confidence: float = 0.95) -> float:
+    """Estimate Value-at-Risk (VaR) using historical simulation.
+
+    Parameters
+    ----------
+    returns : Sequence[float]
+        Historical portfolio returns.
+    confidence : float, default ``0.95``
+        Confidence level for VaR calculation.
+
+    Returns
+    -------
+    float
+        VaR value expressed as a positive number. Higher values indicate
+        greater expected loss.
+    """
+    if not returns:
+        raise ValueError("returns cannot be empty")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must be between 0 and 1")
+    sorted_returns = np.sort(np.asarray(returns))
+    index = int(len(sorted_returns) * (1 - confidence))
+    index = max(0, min(index, len(sorted_returns) - 1))
+    return float(-sorted_returns[index])
+
+
+def drl_throttle(state: tuple[float, float]) -> float:
+    """Adaptive throttle factor using a reinforcement learning agent.
+
+    The function attempts to load ``stable_baselines3`` to train a minimal
+    agent. If unavailable, it falls back to a heuristic based on drawdown and
+    volatility.
+
+    Parameters
+    ----------
+    state : tuple[float, float]
+        A tuple of ``(drawdown, volatility)``.
+
+    Returns
+    -------
+    float
+        Throttle factor between ``0.1`` and ``1``.
+    """
+    drawdown, vol = state
+    try:  # pragma: no cover - optional dependency
+        sb3 = import_module("stable_baselines3")
+        gym = import_module("gym")
+        # Simple environment describing risk state
+        class RiskEnv(gym.Env):
+            metadata = {"render.modes": []}
+
+            def __init__(self):
+                super().__init__()
+                self.observation_space = gym.spaces.Box(low=0, high=1, shape=(2,), dtype=np.float32)
+                self.action_space = gym.spaces.Box(low=0.1, high=1.0, shape=(1,), dtype=np.float32)
+
+            def reset(self, *, seed=None, options=None):  # type: ignore[override]
+                return np.zeros(2, dtype=np.float32), {}
+
+            def step(self, action):
+                # reward encourages lower throttle when risk is high
+                reward = 1 - (drawdown + vol) * action[0]
+                done = True
+                return np.array([drawdown, vol], dtype=np.float32), reward, done, False, {}
+
+        model = sb3.PPO("MlpPolicy", RiskEnv(), verbose=0)
+        model.learn(100)
+        action, _ = model.predict(np.array([drawdown, vol]))
+        return float(action[0])
+    except Exception:
+        # fallback heuristic
+        return float(max(0.1, 1 - drawdown - vol))
+
+
+def shap_explain(model, features):
+    """Compute SHAP values for a model prediction.
+
+    Returns ``None`` if the :mod:`shap` library is not installed."""
+    try:  # pragma: no cover - optional dependency
+        shap = import_module("shap")
+    except Exception:  # shap not installed
+        return None
+    explainer = shap.Explainer(model)
+    return explainer(features)
+
+
 __all__ = [
     "calculate_position_size",
     "trailing_stop",
@@ -139,4 +230,7 @@ __all__ = [
     "dynamic_leverage",
     "compound_capital",
     "volatility_scaled_stop",
+    "ai_var",
+    "drl_throttle",
+    "shap_explain",
 ]
