@@ -258,8 +258,12 @@ def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     ).max(axis=1)
 
     atr = tr.rolling(window=period).mean()
-    plus_di = 100 * pd.Series(plus_dm).rolling(window=period).mean() / atr
-    minus_di = 100 * pd.Series(minus_dm).rolling(window=period).mean() / atr
+    # Preserve the original index so calculations align with ``atr`` even when
+    # ``df`` uses a DatetimeIndex.  Without specifying the index, pandas would
+    # align on the default RangeIndex leading to all-NaN results for
+    # non-integer indices.
+    plus_di = 100 * pd.Series(plus_dm, index=df.index).rolling(window=period).mean() / atr
+    minus_di = 100 * pd.Series(minus_dm, index=df.index).rolling(window=period).mean() / atr
     dx = (plus_di - minus_di).abs() / (plus_di + minus_di) * 100
     adx = dx.rolling(window=period).mean()
     return adx
