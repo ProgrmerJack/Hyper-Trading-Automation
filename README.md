@@ -19,6 +19,8 @@ This project implements a simplified version of the trading automation system de
   trailing stops and volatility-scaled exits with persistent equity tracking.
 - Advanced risk utilities providing AI-driven historical VaR, optional
   reinforcement-learning based throttling and SHAP explainability helpers.
+- Volatility scanner that ranks symbols by ATR to focus on the most
+  active markets.
 - MetaTrader5 Expert Advisor reads generated signals and executes orders with stop-loss and take-profit.
 - Basic testing suite and GitHub Actions workflow.
 - On-chain gas fee analytics and order book imbalance filters for higher quality crypto signals.
@@ -72,10 +74,10 @@ The MetaTrader5 Expert Advisor code is located in `hypertrader/execution/hypertr
 
 ### Running the autonomous bot
 
-The `hypertrader.bot` module fetches data from Yahoo Finance, optionally gathers news sentiment, and writes a trading signal with calculated position size to `signal.json`:
+The `hypertrader.bot` module fetches data from Yahoo Finance, optionally gathers news sentiment, and writes a trading signal with calculated position size to `signal.json`. When multiple symbols are provided the bot will automatically trade the one with the highest recent volatility:
 
- ```bash
- python -m hypertrader.bot BTC-USD --account_balance 10000 --risk_percent 2 \
+```bash
+python -m hypertrader.bot BTC-USD ETH-USD --account_balance 10000 --risk_percent 5 \
      --fred_api_key YOUR_FRED_KEY \
      --model_path trained_model.pkl
 
