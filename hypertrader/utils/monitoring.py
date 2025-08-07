@@ -7,8 +7,10 @@ import numpy as np
 from prometheus_client import Gauge, start_http_server
 from sklearn.ensemble import IsolationForest
 
-# Prometheus metric for tracking trade latency
+# Prometheus gauges for core risk metrics
 latency_gauge = Gauge("trade_latency_ms", "Execution latency in milliseconds")
+equity_gauge = Gauge("account_equity", "Current account equity")
+var_gauge = Gauge("portfolio_var", "Estimated value-at-risk")
 
 
 def start_metrics_server(port: int = 8000) -> None:
@@ -19,6 +21,16 @@ def start_metrics_server(port: int = 8000) -> None:
 def monitor_latency(value: float) -> None:
     """Update the latency gauge."""
     latency_gauge.set(value)
+
+
+def monitor_equity(value: float) -> None:
+    """Update the equity gauge."""
+    equity_gauge.set(value)
+
+
+def monitor_var(value: float) -> None:
+    """Update the VaR gauge."""
+    var_gauge.set(value)
 
 
 def detect_anomalies(metrics: Iterable[float]) -> np.ndarray:
@@ -39,4 +51,13 @@ def detect_anomalies(metrics: Iterable[float]) -> np.ndarray:
     return model.fit_predict(arr.reshape(-1, 1))
 
 
-__all__ = ["start_metrics_server", "monitor_latency", "detect_anomalies", "latency_gauge"]
+__all__ = [
+    "start_metrics_server",
+    "monitor_latency",
+    "monitor_equity",
+    "monitor_var",
+    "detect_anomalies",
+    "latency_gauge",
+    "equity_gauge",
+    "var_gauge",
+]
