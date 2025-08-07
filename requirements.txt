@@ -12,3 +12,8 @@ tenacity
 vectorbt
 pydantic
 prometheus_client
+torch
+stable-baselines3
+optuna
+imbalanced-learn
+transformers
