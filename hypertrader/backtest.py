@@ -55,3 +55,37 @@ def advanced_backtest(
 
 __all__ = ["advanced_backtest"]
 
+
+def complex_backtest(data: pd.DataFrame, model) -> dict:
+    """Backtest using prediction probabilities from a model.
+
+    Parameters
+    ----------
+    data:
+        DataFrame containing a ``close`` column and any features required by
+        ``model``.
+    model:
+        Object implementing a ``predict`` method returning probabilities of
+        upward movement. Values above ``0.5`` trigger long entries while values
+        below ``0.5`` signal exits.
+
+    Returns
+    -------
+    dict
+        Dictionary containing Sharpe ratio and maximum drawdown statistics.
+    """
+
+    probs = model.predict(data)
+    entries = probs > 0.5
+    exits = probs < 0.5
+    pf = vbt.Portfolio.from_signals(data["close"], entries, exits)
+    pf = pf.apply_slippage(0.001).apply_fees(0.0005)
+    stats = pf.stats()
+    return {
+        "sharpe_ratio": float(stats["Sharpe Ratio"]),
+        "max_drawdown": float(stats["Max Drawdown [%]"]),
+    }
+
+
+__all__.append("complex_backtest")
+
