@@ -14,7 +14,11 @@ from ..utils.net import fetch_with_retry
 def _ccxt_fetch(exchange_name: str, symbol: str, timeframe: str, since: int | None, limit: int) -> list[list[float]]:
     exchange_class = getattr(ccxt, exchange_name)
     exchange = exchange_class()
-    return exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit)
+    try:
+        return exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit)
+    finally:
+        # Ensure network resources are released even on failure
+        exchange.close()
 
 
 def fetch_ohlcv(
@@ -83,7 +87,10 @@ def fetch_order_book(exchange_name: str, symbol: str, limit: int = 5) -> dict:
     """Fetch order book data from an exchange using CCXT."""
     exchange_class = getattr(ccxt, exchange_name)
     exchange = exchange_class()
-    return exchange.fetch_order_book(symbol, limit=limit)
+    try:
+        return exchange.fetch_order_book(symbol, limit=limit)
+    finally:
+        exchange.close()
 
 
 async def websocket_ingest(symbol: str, exchange_name: str = "binance") -> AsyncIterator[Dict[str, Any]]:

@@ -12,6 +12,8 @@ def test_fetch_ohlcv(monkeypatch):
                 [0, 1, 2, 0, 1, 10],
                 [3600000, 1, 2, 0, 1, 10],
             ]
+        def close(self):
+            pass
     monkeypatch.setattr('ccxt.binance', DummyExchange)
     df = fetch_ohlcv('binance', 'BTC/USDT')
     assert isinstance(df, pd.DataFrame)
@@ -23,10 +25,14 @@ def test_fetch_ohlcv_with_fallback(monkeypatch):
     class PrimaryExchange:
         def fetch_ohlcv(self, symbol, timeframe='1h', since=None, limit=1000):
             raise RuntimeError("primary fail")
+        def close(self):
+            pass
 
     class FallbackExchange:
         def fetch_ohlcv(self, symbol, timeframe='1h', since=None, limit=1000):
             return [[0, 1, 1, 1, 1, 1]]
+        def close(self):
+            pass
 
     monkeypatch.setattr('ccxt.binance', PrimaryExchange)
     monkeypatch.setattr('ccxt.coinbase', FallbackExchange)
@@ -66,6 +72,8 @@ def test_fetch_order_book(monkeypatch):
     class DummyExchange:
         def fetch_order_book(self, symbol, limit=5):
             return {"bids": [[1, 2]], "asks": [[1.1, 3]]}
+        def close(self):
+            pass
 
     monkeypatch.setattr('ccxt.binance', DummyExchange)
     book = fetch_order_book('binance', 'BTC/USDT')
