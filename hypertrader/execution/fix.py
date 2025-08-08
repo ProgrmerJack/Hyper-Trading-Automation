@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - quickfix not installed
     fix = None  # type: ignore
 
 
-class FIXApp(fix.Application if fix else object):
+class FIXApp(fix.Application if fix else object):  # type: ignore[misc]
     """Basic FIX application skeleton.
 
     The class only defines callbacks required by ``quickfix``. If the

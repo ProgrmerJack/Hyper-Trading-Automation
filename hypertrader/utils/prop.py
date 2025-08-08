@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Utilities for simulating prop-trading style funding challenges."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Callable, Dict
