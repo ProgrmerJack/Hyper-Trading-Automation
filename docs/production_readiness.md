@@ -14,7 +14,7 @@ This repository is a research prototype and is **not** production-ready for live
 
 ## Backtesting limitations
 - Vectorized backtests do not model order book microstructure or latency. Use an event-driven simulator with depth, queue and realistic fills.
-- Current data sources (e.g., Yahoo Finance) are informational only. Replace with exchange-grade historical data.
+- Historical data should come from exchange-grade sources; Yahoo Finance has been removed from the live code path.
 - Include actual fees and funding costs in simulations.
 
 ## Prioritized fixes

@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import uuid
 
 import ccxt.async_support as ccxt
 
@@ -14,11 +15,35 @@ ex = getattr(ccxt, os.getenv("EXCHANGE", "binance"))({
 
 
 async def place_order(
-    symbol: str, side: str, qty: float, price: float | None = None, params: dict | None = None
+    symbol: str,
+    side: str,
+    qty: float,
+    price: float | None = None,
+    client_id: str | None = None,
+    params: dict | None = None,
 ):
-    """Place an order after validating venue limits."""
+    """Place an order after validating venue limits.
 
-    params = params or {}
+    Parameters
+    ----------
+    symbol : str
+        Trading pair symbol e.g. ``BTC/USDT``.
+    side : str
+        Either ``buy`` or ``sell``.
+    qty : float
+        Quantity to trade.
+    price : float | None, optional
+        Limit price.  If ``None`` a market order is sent.
+    client_id : str | None, optional
+        Optional idempotency key.  A random UUID will be generated if not provided.
+    params : dict | None, optional
+        Additional parameters for the CCXT order call.
+    """
+
+    params = params.copy() if params else {}
+    if client_id is None:
+        client_id = uuid.uuid4().hex
+    params.setdefault("clientOrderId", client_id)
 
     await ex.load_markets()
     market = ex.market(symbol)
@@ -37,3 +62,10 @@ async def place_order(
     latency_ms = (time.perf_counter() - before) * 1000
     logging.info("order-latency-ms %d", latency_ms)
     return order
+
+
+async def cancel_order(symbol: str, order_id: str):
+    """Cancel a specific order by id."""
+
+    await ex.load_markets()
+    return await ex.cancel_order(order_id, symbol)

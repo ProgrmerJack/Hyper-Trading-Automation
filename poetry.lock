@@ -3157,8 +3157,8 @@ tqdm = "*"
 
 [package.extras]
 cov = ["codecov", "pytest", "pytest-cov"]
-full = ["TA-Lib", "alpaca-py", "ccxt (>=4.0.14)", "pandas_ta", "python-binance", "python-telegram-bot (>=13.4,<20.0)", "quantstats (>=0.0.37)", "ray (>=1.4.1)", "ta", "yfinance (>=0.2.22)"]
-full-no-talib = ["alpaca-py", "ccxt (>=4.0.14)", "pandas_ta", "python-binance", "python-telegram-bot (>=13.4,<20.0)", "quantstats (>=0.0.37)", "ray (>=1.4.1)", "ta", "yfinance (>=0.2.22)"]
+full = ["TA-Lib", "alpaca-py", "ccxt (>=4.0.14)", "pandas_ta", "python-binance", "python-telegram-bot (>=13.4,<20.0)", "quantstats (>=0.0.37)", "ray (>=1.4.1)", "ta"]
+full-no-talib = ["alpaca-py", "ccxt (>=4.0.14)", "pandas_ta", "python-binance", "python-telegram-bot (>=13.4,<20.0)", "quantstats (>=0.0.37)", "ray (>=1.4.1)", "ta"]
 
 [[package]]
 name = "wcwidth"
@@ -3413,21 +3413,6 @@ idna = ">=2.0"
 multidict = ">=4.0"
 propcache = ">=0.2.1"
 
-[[package]]
-name = "yfinance"
-version = "0.2.65"
-description = "Download market data from Yahoo! Finance API"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "yfinance-0.2.65-py2.py3-none-any.whl", hash = "sha256:7be13abb0d80a17230bf798e9c6a324fa2bef0846684a6d4f7fa2abd21938963"},
-    {file = "yfinance-0.2.65.tar.gz", hash = "sha256:3d465e58c49be9d61f9862829de3e00bef6b623809f32f4efb5197b62fc60485"},
-]
-
-[package.dependencies]
-beautifulsoup4 = ">=4.11.1"
-curl_cffi = ">=0.7"
 frozendict = ">=2.3.4"
 multitasking = ">=0.0.7"
 numpy = ">=1.16.5"

@@ -3,6 +3,7 @@ import asyncio
 import json
 import time
 import os
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
@@ -51,7 +52,8 @@ from .data.macro import (
     fetch_global_liquidity,
 )
 from .utils.macro import compute_macro_score
-from .execution.ccxt_executor import place_order
+from .execution.ccxt_executor import place_order, cancel_order
+from .risk.manager import RiskManager, RiskParams
 
 load_dotenv()
 
@@ -128,6 +130,27 @@ def run(
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
+    open_orders: dict[str, Any] = state.get("open_orders", {})
+
+    risk_cfg = cfg.get("risk", {}) if config_path else {}
+    params = RiskParams(
+        max_daily_loss=risk_cfg.get("max_daily_loss", account_balance * 0.2),
+        max_position=risk_cfg.get("max_position", account_balance * max_exposure),
+        fee_rate=risk_cfg.get("fee_rate", 0.0),
+        slippage=risk_cfg.get("slippage", 0.0),
+        symbol_limits=risk_cfg.get("symbol_limits"),
+    )
+    risk_manager = RiskManager(params)
+    risk_manager.reset_day(account_balance)
+
+    # cancel any lingering open orders from previous session
+    if live and exchange and open_orders:
+        for oid, info in list(open_orders.items()):
+            try:
+                asyncio.run(cancel_order(info["symbol"], oid))
+                del open_orders[oid]
+            except Exception as exc:
+                log_json(logger, "cancel_failed", order_id=oid, error=str(exc))
 
     kill = kill_switch(drawdown)
     if kill:
@@ -253,12 +276,19 @@ def run(
         "leverage": leverage,
         "var": var,
     }
-
+    position_value = volume * price
+    edge = abs((take_profit - price) / price) if take_profit else 0.0
     if live and exchange and sig.action != "HOLD" and volume > 0:
-        try:
-            asyncio.run(place_order(ccxt_symbol, sig.action, volume))
-        except Exception as exc:
-            log_json(logger, "order_failed", error=str(exc))
+        if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
+            client_id = uuid.uuid4().hex
+            try:
+                asyncio.run(place_order(ccxt_symbol, sig.action, volume, client_id=client_id))
+                open_orders[client_id] = {"symbol": ccxt_symbol, "side": sig.action, "volume": volume}
+                payload["client_order_id"] = client_id
+            except Exception as exc:
+                log_json(logger, "order_failed", error=str(exc))
+        else:
+            log_json(logger, "risk_check_failed", symbol=symbol, position_value=position_value)
     else:
         Path(signal_path).write_text(json.dumps(payload))
     latency = time.time() - start_time
@@ -289,6 +319,10 @@ def run(
     state["peak_equity"] = max(peak_equity, account_balance)
     state["equity"] = account_balance
     state["latencies"] = latencies
+    if open_orders:
+        state["open_orders"] = open_orders
+    elif "open_orders" in state:
+        del state["open_orders"]
     state_file.write_text(json.dumps(state))
 
 

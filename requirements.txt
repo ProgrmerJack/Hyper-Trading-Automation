@@ -3,7 +3,6 @@ cryptofeed==2.4.1
 pandas==2.2.2
 vaderSentiment==3.3.2
 requests==2.32.3
-yfinance==0.2.37
 fredapi==0.5.1
 scikit-learn==1.4.2
 pytest==8.2.2

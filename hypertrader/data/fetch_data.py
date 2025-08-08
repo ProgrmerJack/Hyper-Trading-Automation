@@ -1,7 +1,7 @@
 import ccxt
+import ccxt.async_support as ccxt_async
 import asyncio
 import pandas as pd
-from importlib import import_module
 from typing import AsyncIterator, Dict, Any, Optional
 
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -74,35 +74,23 @@ def fetch_order_book(exchange_name: str, symbol: str, limit: int = 5) -> dict:
 
 
 async def websocket_ingest(symbol: str, exchange_name: str = "binance") -> AsyncIterator[Dict[str, Any]]:
-    """Stream ticker updates via WebSocket using ``ccxt.pro``.
+    """Stream ticker updates via WebSocket using CCXT's async support.
 
     Parameters
     ----------
     symbol : str
         Trading pair symbol like ``'BTC/USDT'``.
     exchange_name : str, default ``"binance"``
-        Exchange name supported by ``ccxt.pro``.
+        Exchange name supported by CCXT.
 
     Yields
     ------
     dict
         Raw ticker information from the exchange.
-
-    Notes
-    -----
-    Requires the optional ``ccxt.pro`` package. A minimal example:
-
-    >>> async for tick in websocket_ingest('BTC/USDT'):
-    ...     print(tick['last'])
     """
 
-    try:  # pragma: no cover - optional dependency
-        ccxtpro = import_module("ccxt.pro")
-    except Exception as exc:  # pragma: no cover - network/optional
-        raise ImportError("ccxt.pro is required for websocket_ingest") from exc
-
-    exchange_class = getattr(ccxtpro, exchange_name)
-    exchange = exchange_class()
+    exchange_class = getattr(ccxt_async, exchange_name)
+    exchange = exchange_class({"enableRateLimit": True})
     while True:
         ticker = await exchange.watch_ticker(symbol)
         yield ticker
@@ -114,7 +102,7 @@ async def stream_ohlcv(
     exchange_name: str = "binance",
     queue: Optional[asyncio.Queue] = None,
 ) -> AsyncIterator[list[float]]:
-    """Stream OHLCV candles via ``ccxt.pro``.
+    """Stream OHLCV candles via CCXT's async WebSocket support.
 
     Parameters
     ----------
@@ -123,19 +111,14 @@ async def stream_ohlcv(
     timeframe : str, default ``"1m"``
         Candle timeframe to subscribe to.
     exchange_name : str, default ``"binance"``
-        Exchange name supported by ``ccxt.pro``.
+        Exchange name supported by CCXT.
     queue : asyncio.Queue, optional
         If provided, received candles are placed into the queue instead of
         being yielded.
     """
 
-    try:  # pragma: no cover - optional dependency
-        ccxtpro = import_module("ccxt.pro")
-    except Exception as exc:  # pragma: no cover - network/optional
-        raise ImportError("ccxt.pro is required for stream_ohlcv") from exc
-
-    exchange_class = getattr(ccxtpro, exchange_name)
-    exchange = exchange_class()
+    exchange_class = getattr(ccxt_async, exchange_name)
+    exchange = exchange_class({"enableRateLimit": True})
     while True:
         candle = await exchange.watch_ohlcv(symbol, timeframe)
         if queue is not None:
