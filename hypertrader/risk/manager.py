@@ -46,6 +46,7 @@ class RiskManager:
 
         if self.starting_equity is None:
             self.reset_day(equity)
+            assert self.starting_equity is not None
 
         loss = self.starting_equity - equity
         if loss > self.params.max_daily_loss:

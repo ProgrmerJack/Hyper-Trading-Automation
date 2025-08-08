@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Collection of simple multi-strategy helpers.
 
 The functions provided here serve as building blocks for arbitrage,
@@ -7,6 +5,8 @@ scalping and market-making strategies.  They are intentionally minimal
 and operate on the best-effort basis, serving as examples of how to
 extend the existing rule-based strategies in ``hypertrader``.
 """
+
+from __future__ import annotations
 
 from typing import Tuple
 
@@ -32,7 +32,6 @@ def arb_scalp(
     p1 = getattr(ccxt, primary_ex)().fetch_ticker(symbol)["last"]
     p2 = getattr(ccxt, secondary_ex)().fetch_ticker(symbol)["last"]
     if abs(p1 - p2) > threshold * p1:
-        size = (capital * lev * 0.01) / p1  # 1% of capital at given leverage
         return "buy_low_sell_high" if p1 < p2 else "sell_high_buy_low"
     return "neutral"
 
