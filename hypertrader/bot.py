@@ -3,6 +3,7 @@ import asyncio
 import json
 import time
 import os
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
@@ -51,7 +52,7 @@ from .data.macro import (
     fetch_global_liquidity,
 )
 from .utils.macro import compute_macro_score
-from .execution.ccxt_executor import place_order
+from .execution.ccxt_executor import place_order, cancel_order
 
 load_dotenv()
 
@@ -128,6 +129,16 @@ def run(
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
+    open_orders: dict[str, Any] = state.get("open_orders", {})
+
+    # cancel any lingering open orders from previous session
+    if live and exchange and open_orders:
+        for oid, info in list(open_orders.items()):
+            try:
+                asyncio.run(cancel_order(info["symbol"], oid))
+                del open_orders[oid]
+            except Exception as exc:
+                log_json(logger, "cancel_failed", order_id=oid, error=str(exc))
 
     kill = kill_switch(drawdown)
     if kill:
@@ -253,10 +264,12 @@ def run(
         "leverage": leverage,
         "var": var,
     }
-
     if live and exchange and sig.action != "HOLD" and volume > 0:
+        client_id = uuid.uuid4().hex
         try:
-            asyncio.run(place_order(ccxt_symbol, sig.action, volume))
+            asyncio.run(place_order(ccxt_symbol, sig.action, volume, client_id=client_id))
+            open_orders[client_id] = {"symbol": ccxt_symbol, "side": sig.action, "volume": volume}
+            payload["client_order_id"] = client_id
         except Exception as exc:
             log_json(logger, "order_failed", error=str(exc))
     else:
@@ -289,6 +302,10 @@ def run(
     state["peak_equity"] = max(peak_equity, account_balance)
     state["equity"] = account_balance
     state["latencies"] = latencies
+    if open_orders:
+        state["open_orders"] = open_orders
+    elif "open_orders" in state:
+        del state["open_orders"]
     state_file.write_text(json.dumps(state))
 
 
