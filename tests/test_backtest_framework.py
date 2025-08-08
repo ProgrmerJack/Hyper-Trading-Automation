@@ -1,6 +1,7 @@
 import pandas as pd
 
 from hypertrader.backtest import advanced_backtest
+from hypertrader.backtest_event import EventDrivenBacktester
 
 
 def ma_strategy(data: pd.DataFrame):
@@ -21,3 +22,11 @@ def test_advanced_backtest():
     assert stats2["final_value"] > stats1["final_value"]
     stats3 = advanced_backtest(data, ma_strategy, slippage_bps=100.0, fee_bps=100.0)
     assert stats3["final_value"] < stats1["final_value"]
+
+
+def test_event_backtester():
+    prices = [1, 2, 3]
+    signals = ["BUY", "HOLD", "SELL"]
+    bt = EventDrivenBacktester(100)
+    final = bt.process(prices, signals, 1)
+    assert final > 100

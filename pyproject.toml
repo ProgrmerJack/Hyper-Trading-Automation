@@ -16,7 +16,6 @@ dependencies = [
     "pydantic (>=2.11.7,<3.0.0)",
     "vadersentiment (>=3.3.2,<4.0.0)",
     "prometheus-client (>=0.22.1,<0.23.0)",
-    "yfinance (>=0.2.65,<0.3.0)",
     "fredapi (>=0.5.2,<0.6.0)",
 ]
 

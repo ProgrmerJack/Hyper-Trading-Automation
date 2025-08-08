@@ -46,18 +46,22 @@ def test_fetch_ohlcv_with_fallback(monkeypatch):
 
 
 
-def test_stream_ohlcv_requires_ccxtpro(monkeypatch):
-    def fake_import(name):
-        raise ImportError("ccxt.pro missing")
+def test_stream_ohlcv(monkeypatch):
+    class DummyExchange:
+        def __init__(self, *args, **kwargs):
+            pass
 
-    monkeypatch.setattr("hypertrader.data.fetch_data.import_module", fake_import)
+        async def watch_ohlcv(self, symbol, timeframe):
+            return [0, 1, 1, 1, 1, 1]
+
+    monkeypatch.setattr("ccxt.async_support.binance", DummyExchange)
 
     async def run():
         gen = stream_ohlcv("BTC/USDT")
-        await gen.__anext__()
+        candle = await gen.__anext__()
+        assert candle[0] == 0
 
-    with pytest.raises(ImportError):
-        asyncio.run(run())
+    asyncio.run(run())
 
 
 def test_fetch_cardboard_production(monkeypatch):
