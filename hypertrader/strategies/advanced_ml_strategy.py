@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Advanced machine learning utilities for hyper-trading.
 
 This module introduces a more complex ML pipeline including feature
@@ -8,6 +6,8 @@ reinforcement learning environment.  The goal is to provide an easily
 extensible baseline for high frequency trading research without imposing
 heavy runtime costs on users that do not require the functionality.
 """
+
+from __future__ import annotations
 
 from typing import Iterable, Tuple
 

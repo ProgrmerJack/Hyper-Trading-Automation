@@ -76,7 +76,7 @@ def rank_symbols_by_volatility(
                 sym, atr = result
                 vol_map[sym] = atr
 
-    ranked = sorted(vol_map, key=vol_map.get, reverse=True)
+    ranked = sorted(vol_map, key=lambda k: vol_map.get(k, 0.0), reverse=True)
     return ranked
 
 

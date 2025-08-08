@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Reinforcement-learning helpers for dynamic leverage selection."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Tuple
@@ -27,7 +27,7 @@ class EnvConfig:
 class CustomTradingEnv(Env):
     """Minimal trading environment exposing leverage as an action."""
 
-    metadata = {"render.modes": []}
+    metadata: dict[str, list[str]] = {"render.modes": []}
 
     def __init__(self, config: EnvConfig | None = None):  # pragma: no cover - simple container
         self.config = config or EnvConfig()
