@@ -53,7 +53,13 @@ def advanced_backtest(
     }
 
 
-__all__ = ["advanced_backtest"]
+def exec_trade(pnl: float, side: str, qty: float, price: float, maker: bool = True, slip_bps: float = 5) -> float:
+    fee_bps = -2 if maker else 10
+    cost_bps = fee_bps + slip_bps
+    return pnl - (abs(qty) * price * cost_bps / 10000)
+
+
+__all__ = ["advanced_backtest", "exec_trade"]
 
 
 def complex_backtest(data: pd.DataFrame, model) -> dict:

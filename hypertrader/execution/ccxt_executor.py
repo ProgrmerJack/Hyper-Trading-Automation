@@ -1,56 +1,22 @@
-"""Simple order execution using CCXT."""
-from __future__ import annotations
-
+import asyncio
+import logging
 import os
-import os
-from typing import Optional
+import time
 
-import ccxt
-from dotenv import load_dotenv
+import ccxt.async_support as ccxt
 
-load_dotenv()
-
-
-def _create_exchange(exchange_name: str) -> ccxt.Exchange:
-    api_key = os.getenv(f"{exchange_name.upper()}_API_KEY")
-    api_secret = os.getenv(f"{exchange_name.upper()}_API_SECRET")
-    exchange_class = getattr(ccxt, exchange_name)
-    return exchange_class({"apiKey": api_key, "secret": api_secret, "enableRateLimit": True})
+ex = getattr(ccxt, os.getenv("EXCHANGE", "binance"))({
+    "apiKey": os.getenv("API_KEY"),
+    "secret": os.getenv("API_SECRET"),
+    "enableRateLimit": True,
+})
 
 
-def place_order(exchange_name: str, symbol: str, side: str, amount: float, order_type: str = "market", price: Optional[float] = None) -> dict:
-    """Place an order via CCXT using API keys from environment."""
-    exchange = _create_exchange(exchange_name)
-    try:
-        if order_type == "market":
-            return exchange.create_market_order(symbol, side.lower(), amount)
-        return exchange.create_limit_order(symbol, side.lower(), amount, price)
-    finally:
-        exchange.close()
-
-
-def cancel_all(exchange_name: str, symbol: str) -> None:
-    """Cancel all open orders for the given symbol."""
-    exchange = _create_exchange(exchange_name)
-    try:
-        orders = exchange.fetch_open_orders(symbol)
-        for order in orders:
-            exchange.cancel_order(order["id"], symbol)
-    finally:
-        exchange.close()
-
-
-def get_balance(exchange_name: str, asset: str = "USDT") -> float:
-    """Return free balance for the specified asset."""
-    exchange = _create_exchange(exchange_name)
-    try:
-        balance = exchange.fetch_balance()
-        info = balance.get(asset, {})
-        if isinstance(info, dict):
-            return float(info.get("free", 0))
-        return float(info)
-    finally:
-        exchange.close()
-
-
-__all__ = ["place_order", "cancel_all", "get_balance"]
+async def place_order(symbol: str, side: str, qty: float, price: float | None = None, params: dict | None = None):
+    params = params or {}
+    fn = ex.create_limit_buy_order if side == "buy" else ex.create_limit_sell_order
+    before = time.perf_counter()
+    order = await fn(symbol, qty, price, params)
+    latency_ms = (time.perf_counter() - before) * 1000
+    logging.info("order-latency-ms %d", latency_ms)
+    return order
