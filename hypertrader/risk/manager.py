@@ -16,6 +16,12 @@ class RiskParams:
     fee_rate: float = 0.0
     """Estimated taker fee rate used to sanity-check signal edge."""
 
+    slippage: float = 0.0
+    """Estimated slippage rate included in edge comparison."""
+
+    symbol_limits: dict[str, float] | None = None
+    """Optional per-symbol exposure caps."""
+
 
 class RiskManager:
     """Simple risk gate evaluated before every order.
@@ -33,15 +39,26 @@ class RiskManager:
         """Reset the starting equity, typically at the beginning of a session."""
         self.starting_equity = equity
 
-    def check_order(self, equity: float, position_value: float, edge: float) -> bool:
+    def check_order(
+        self, equity: float, symbol: str, position_value: float, edge: float
+    ) -> bool:
         """Return ``True`` if the order passes all risk checks."""
+
         if self.starting_equity is None:
             self.reset_day(equity)
+
         loss = self.starting_equity - equity
         if loss > self.params.max_daily_loss:
             return False
+
         if position_value > self.params.max_position:
             return False
-        if edge <= self.params.fee_rate:
+
+        if self.params.symbol_limits and symbol in self.params.symbol_limits:
+            if position_value > self.params.symbol_limits[symbol]:
+                return False
+
+        if edge <= self.params.fee_rate + self.params.slippage:
             return False
+
         return True

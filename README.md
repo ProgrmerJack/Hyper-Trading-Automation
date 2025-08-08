@@ -3,6 +3,7 @@
 This project implements a simplified version of the trading automation system described in the accompanying design document.
 It is a research prototype intended for educational purposes rather than a
 production‑grade or high‑frequency trading engine.
+See [docs/production_readiness.md](docs/production_readiness.md) for known gaps and steps required before live trading.
 
 ## Features
 

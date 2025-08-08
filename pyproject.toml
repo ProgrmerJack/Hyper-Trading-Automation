@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "ccxt==4.3.22",
-    "cryptofeed==2.3.0",
+    "cryptofeed==2.4.1",
     "websockets==12.0",
 ]
 
