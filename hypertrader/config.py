@@ -7,6 +7,7 @@ at the project root is used when no path is provided.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -68,6 +69,13 @@ def load_config(path: str | Path | None = None) -> Dict[str, Any]:
             model = ConfigModel.parse_obj(data)
     except ValidationError as exc:  # pragma: no cover - simple pass through
         raise ValueError(f"Invalid configuration: {exc}") from exc
+
+    # Fill API keys from environment variables if not provided in config
+    api = model.api_keys or APIKeys()
+    api.fred = api.fred or os.getenv("FRED_API_KEY")
+    api.news = api.news or os.getenv("NEWS_API_KEY")
+    api.etherscan = api.etherscan or os.getenv("ETHERSCAN_API_KEY")
+    model.api_keys = api
 
     return model.model_dump() if hasattr(model, "model_dump") else model.dict()
 

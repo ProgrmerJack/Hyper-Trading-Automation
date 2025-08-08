@@ -102,8 +102,8 @@ def dynamic_leverage(
     capital: float,
     risk_percent: float = 1.0,
     volatility: float = 0.02,
-    min_leverage: float = 10.0,
-    max_leverage: float = 100.0,
+    min_leverage: float = 1.0,
+    max_leverage: float = 5.0,
 ) -> float:
     """Determine leverage based on risk tolerance and market volatility.
 
@@ -115,9 +115,9 @@ def dynamic_leverage(
         Percentage of capital willing to risk on a trade.
     volatility : float, default 0.02
         Recent volatility estimate expressed as a decimal (e.g. ``0.02`` for 2%).
-    min_leverage : float, default 10.0
+    min_leverage : float, default 1.0
         Minimum leverage allowed by the broker.
-    max_leverage : float, default 100.0
+    max_leverage : float, default 5.0
         Maximum leverage allowed by the broker.
 
     Returns

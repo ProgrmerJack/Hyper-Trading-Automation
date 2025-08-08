@@ -40,8 +40,8 @@ def test_kill_switch():
 
 def test_dynamic_leverage():
     lev = dynamic_leverage(100, risk_percent=1, volatility=0.0005)
-    assert 10 <= lev <= 100
-    assert lev > 10  # should scale above minimum with low vol
+    assert 1 <= lev <= 5
+    assert lev > 1  # should scale above minimum with low vol
 
 
 def test_compound_and_vol_stop():

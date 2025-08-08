@@ -1,6 +1,8 @@
 # Hyper-Trading Automation
 
 This project implements a simplified version of the trading automation system described in the accompanying design document.
+It is a research prototype intended for educational purposes rather than a
+production‑grade or high‑frequency trading engine.
 
 ## Features
 
@@ -55,9 +57,19 @@ pip install -r requirements.txt
 
 ### Configuration
 
-Runtime options such as API keys, default trading symbol and risk parameters
-are stored in `config.yaml`. Edit this file to suit your environment or pass a
-custom path to the bot using `--config`.
+Runtime options such as default trading symbols and risk parameters are stored
+in `config.yaml`. A `config.sample.yaml` is provided as a template – copy it to
+`config.yaml` and adjust values for your environment. API keys are **not**
+stored in the YAML file and should instead be supplied via environment
+variables:
+
+```bash
+export FRED_API_KEY=your_fred_key
+export NEWS_API_KEY=your_news_key
+export ETHERSCAN_API_KEY=your_etherscan_key
+```
+
+You may also pass a custom config path to the bot using `--config`.
 
 2. Run tests:
 
