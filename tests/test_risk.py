@@ -7,6 +7,7 @@ from hypertrader.utils.risk import (
     compound_capital,
     volatility_scaled_stop,
     quantum_leverage_modifier,
+    cap_position_value,
 )
 
 
@@ -14,6 +15,12 @@ def test_calculate_position_size():
     volume = calculate_position_size(10000, 2, 100, 95)
     # risk is 2% of 10000 = 200, stop distance=5 => volume=40
     assert round(volume, 2) == 40
+
+
+def test_position_size_respects_risk_limit():
+    volume = calculate_position_size(100, 5, 50, 45)
+    # risk per unit is 5, exposure should be <=5 dollars
+    assert volume * (50 - 45) <= 5
 
 
 def test_trailing_stop():
@@ -47,3 +54,8 @@ def test_compound_and_vol_stop():
 def test_quantum_leverage_modifier_fallback():
     factor = quantum_leverage_modifier([0.1, 0.2])
     assert factor == 1.0
+
+
+def test_cap_position_value_limits_notional():
+    capped = cap_position_value(10, 50, 100, 3)
+    assert capped == 6

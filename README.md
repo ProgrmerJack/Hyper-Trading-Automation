@@ -101,9 +101,9 @@ The helper functions in `hypertrader.strategies.ml_strategy` make this easy:
 
 ```python
 from hypertrader.strategies.ml_strategy import train_model, ml_signal
-from hypertrader.data.fetch_data import fetch_yahoo_ohlcv
+from hypertrader.data.fetch_data import fetch_ohlcv
 
-data = fetch_yahoo_ohlcv("BTC-USD", lookback="60d")
+data = fetch_ohlcv("binance", "BTC/USDT", timeframe="1m")
 model = train_model(data)
 sig = ml_signal(model, data)
 print(sig)

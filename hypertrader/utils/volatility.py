@@ -12,7 +12,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 
 from .features import compute_atr
-from ..data.fetch_data import fetch_yahoo_ohlcv
+from ..data.fetch_data import fetch_ohlcv
+
+
+def _default_fetcher(symbol: str) -> pd.DataFrame:
+    """Fetch OHLCV data via CCXT for ranking."""
+    return fetch_ohlcv("binance", symbol.replace("-", "/"))
+
 
 # Type alias for a callable that fetches OHLCV data given a symbol
 DataFetcher = Callable[[str], pd.DataFrame]
@@ -21,7 +27,7 @@ DataFetcher = Callable[[str], pd.DataFrame]
 def rank_symbols_by_volatility(
     symbols: Sequence[str],
     period: int = 14,
-    data_fetcher: DataFetcher = fetch_yahoo_ohlcv,
+    data_fetcher: DataFetcher = _default_fetcher,
     max_workers: int | None = None,
 ) -> List[str]:
     """Rank symbols by ATR-based volatility with concurrent fetching.
@@ -34,8 +40,8 @@ def rank_symbols_by_volatility(
         ATR lookback period.
     data_fetcher:
         Function that returns OHLCV ``DataFrame`` for a symbol. By
-        default the project ``fetch_yahoo_ohlcv`` loader is used. A
-        custom fetcher can be supplied for testing.
+        default a CCXT-based loader is used. A custom fetcher can be
+        supplied for testing.
     max_workers:
         Optional thread pool size for concurrent fetching. If ``None``
         the executor will choose a sensible default based on the number

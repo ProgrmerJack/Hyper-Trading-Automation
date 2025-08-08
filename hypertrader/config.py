@@ -21,13 +21,17 @@ class TradingConfig(BaseModel):
     """Schema for trading related settings."""
 
     symbol: str
+    account_balance: float = Field(100.0, ge=0)
     risk_percent: float = Field(..., ge=0, le=100)
+    max_exposure: float = Field(3.0, ge=0)
 
 
 class APIKeys(BaseModel):
     """Schema for API keys."""
 
     fred: str | None = None
+    news: str | None = None
+    etherscan: str | None = None
 
 
 class ConfigModel(BaseModel):
@@ -58,10 +62,14 @@ def load_config(path: str | Path | None = None) -> Dict[str, Any]:
     with cfg_path.open() as f:
         data = yaml.safe_load(f)
     try:
-        model = ConfigModel.model_validate(data)
+        if hasattr(ConfigModel, "model_validate"):
+            model = ConfigModel.model_validate(data)  # type: ignore[attr-defined]
+        else:  # pydantic v1 fallback
+            model = ConfigModel.parse_obj(data)
     except ValidationError as exc:  # pragma: no cover - simple pass through
         raise ValueError(f"Invalid configuration: {exc}") from exc
-    return model.model_dump()
+
+    return model.model_dump() if hasattr(model, "model_dump") else model.dict()
 
 
 __all__ = ["load_config", "DEFAULT_CONFIG_PATH"]

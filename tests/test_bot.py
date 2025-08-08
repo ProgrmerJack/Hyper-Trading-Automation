@@ -9,15 +9,15 @@ def test_run_creates_signal(monkeypatch, tmp_path):
     def dummy_download(symbol, period='7d', interval='1h', progress=False):
         idx = pd.date_range('2024-01-01', periods=200, freq='h')
         data = {
-            'Open': [1]*200,
-            'High': [1]*200,
-            'Low': [1]*200,
-            'Close': [1]*200,
-            'Volume': [1]*200,
+            'open': [1]*200,
+            'high': [1]*200,
+            'low': [1]*200,
+            'close': [1]*200,
+            'volume': [1]*200,
         }
         return pd.DataFrame(data, index=idx)
 
-    monkeypatch.setattr('yfinance.download', dummy_download)
+    monkeypatch.setattr('hypertrader.bot.fetch_ohlcv', lambda *a, **k: dummy_download(None))
     monkeypatch.setattr('hypertrader.bot.fetch_news_headlines', lambda *a, **k: [])
     monkeypatch.setattr('hypertrader.bot.fetch_dxy', lambda *a, **k: pd.Series([100]*60))
     monkeypatch.setattr('hypertrader.bot.fetch_interest_rate', lambda *a, **k: pd.Series([5]*60))
@@ -39,15 +39,15 @@ def test_kill_switch_halts_trading(monkeypatch, tmp_path):
     def dummy_download(symbol, period='7d', interval='1h', progress=False):
         idx = pd.date_range('2024-01-01', periods=200, freq='h')
         data = {
-            'Open': [1]*200,
-            'High': [1]*200,
-            'Low': [1]*200,
-            'Close': [1]*200,
-            'Volume': [1]*200,
+            'open': [1]*200,
+            'high': [1]*200,
+            'low': [1]*200,
+            'close': [1]*200,
+            'volume': [1]*200,
         }
         return pd.DataFrame(data, index=idx)
 
-    monkeypatch.setattr('yfinance.download', dummy_download)
+    monkeypatch.setattr('hypertrader.bot.fetch_ohlcv', lambda *a, **k: dummy_download(None))
     monkeypatch.setattr('hypertrader.bot.fetch_news_headlines', lambda *a, **k: [])
     monkeypatch.setattr('hypertrader.bot.fetch_dxy', lambda *a, **k: pd.Series([100]*60))
     monkeypatch.setattr('hypertrader.bot.fetch_interest_rate', lambda *a, **k: pd.Series([5]*60))
@@ -75,11 +75,11 @@ def test_run_uses_onchain_and_orderbook(monkeypatch, tmp_path):
         # create gentle uptrend to satisfy strategy conditions
         closes = np.linspace(1, 1.2, 200)
         data = {
-            'Open': closes,
-            'High': closes + 0.1,
-            'Low': closes - 0.1,
-            'Close': closes,
-            'Volume': [1]*200,
+            'open': closes,
+            'high': closes + 0.1,
+            'low': closes - 0.1,
+            'close': closes,
+            'volume': [1]*200,
         }
         return pd.DataFrame(data, index=idx)
 
@@ -96,7 +96,7 @@ def test_run_uses_onchain_and_orderbook(monkeypatch, tmp_path):
         assert heatmap > 1.2
         return Signal('BUY')
 
-    monkeypatch.setattr('yfinance.download', dummy_download)
+    monkeypatch.setattr('hypertrader.bot.fetch_ohlcv', lambda *a, **k: dummy_download(None))
     monkeypatch.setattr('hypertrader.bot.fetch_news_headlines', lambda *a, **k: [])
     monkeypatch.setattr('hypertrader.bot.fetch_dxy', lambda *a, **k: pd.Series([100]*60))
     monkeypatch.setattr('hypertrader.bot.fetch_interest_rate', lambda *a, **k: pd.Series([5]*60))
