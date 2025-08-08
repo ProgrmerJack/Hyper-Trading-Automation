@@ -1,9 +1,10 @@
 # Hyper-Trading Automation
 
-This project implements a simplified version of the trading automation system described in the accompanying design document.
-It is a research prototype intended for educational purposes rather than a
-production‑grade or high‑frequency trading engine.
-See [docs/production_readiness.md](docs/production_readiness.md) for known gaps and steps required before live trading.
+This repository implements an event‑driven trading system with WebSocket‑first
+market data, idempotent order management and built‑in risk controls.  It is
+designed for small‑scale live trading and research.  See
+[docs/production_readiness.md](docs/production_readiness.md) for remaining gaps
+and steps required before high‑risk deployment.
 
 ## Features
 
@@ -30,8 +31,9 @@ See [docs/production_readiness.md](docs/production_readiness.md) for known gaps 
 - Enhanced machine learning features include MACD histogram, VWAP distance, OBV, volatility clustering, exchange net flow,
   WaveTrend, multi-timeframe RSI and distance from volume profile POC to better capture momentum, volume and on-chain pressure.
 - Resilient data fetching with retry and optional exchange fallback.
-- WebSocket data ingestion via CCXT's async support and a minimal FIX
-  execution skeleton for low-latency broker connectivity.
+- WebSocket data ingestion via CCXT's async support with automatic
+  heartbeat/reconnect and a minimal FIX execution skeleton for low-latency
+  broker connectivity.
 - Vectorized backtesting helper built on [vectorbt](https://github.com/vectorbt/vectorbt).
 - Backtester accepts leverage to simulate capital amplification and risk.
 - Multi-strategy helpers including basic arbitrage and market-making examples.
