@@ -289,6 +289,7 @@ def run(
                 log_json(logger, "order_failed", error=str(exc))
         else:
             log_json(logger, "risk_check_failed", symbol=symbol, position_value=position_value)
+
     else:
         Path(signal_path).write_text(json.dumps(payload))
     latency = time.time() - start_time
