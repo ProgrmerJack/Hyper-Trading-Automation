@@ -1,7 +1,11 @@
+import asyncio
 import pandas as pd
 import pytest
-
-from hypertrader.data.fetch_data import fetch_ohlcv, fetch_yahoo_ohlcv, fetch_order_book
+from hypertrader.data.fetch_data import (
+    fetch_ohlcv,
+    fetch_order_book,
+    stream_ohlcv,
+)
 from hypertrader.data.macro import fetch_cardboard_production
 
 
@@ -41,22 +45,19 @@ def test_fetch_ohlcv_with_fallback(monkeypatch):
     assert not df.empty
 
 
-def test_fetch_yahoo_ohlcv(monkeypatch):
-    def dummy_download(symbol, period='7d', interval='1h', progress=False):
-        idx = pd.date_range('2024-01-01', periods=2, freq='h')
-        data = {
-            'Open': [1, 1],
-            'High': [2, 2],
-            'Low': [0, 0],
-            'Close': [1, 1],
-            'Volume': [10, 20],
-        }
-        return pd.DataFrame(data, index=idx)
 
-    monkeypatch.setattr('yfinance.download', dummy_download)
-    df = fetch_yahoo_ohlcv('BTC-USD')
-    assert list(df.columns) == ['open', 'high', 'low', 'close', 'volume']
-    assert len(df) == 2
+def test_stream_ohlcv_requires_ccxtpro(monkeypatch):
+    def fake_import(name):
+        raise ImportError("ccxt.pro missing")
+
+    monkeypatch.setattr("hypertrader.data.fetch_data.import_module", fake_import)
+
+    async def run():
+        gen = stream_ohlcv("BTC/USDT")
+        await gen.__anext__()
+
+    with pytest.raises(ImportError):
+        asyncio.run(run())
 
 
 def test_fetch_cardboard_production(monkeypatch):
