@@ -4,7 +4,7 @@ This project implements a simplified version of the trading automation system de
 
 ## Features
 
-- Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) or Yahoo Finance via [yfinance](https://github.com/ranaroussi/yfinance).
+- Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) and optionally stream candles via [ccxt.pro](https://github.com/ccxt/ccxt/tree/master/python/ccxtpro).
 - Compute technical indicators such as moving averages, EMA, SuperTrend, RSI, MACD, Bollinger Bands, VWAP, On-Balance Volume,
   ADX, Stochastic oscillator, Rate of Change, TWAP, CCI, Keltner Channels, exchange net flow, volatility clustering index,
   Fibonacci retracements, WaveTrend oscillator, multi-timeframe RSI, volume profile point of control, Ichimoku Cloud,
@@ -74,7 +74,7 @@ The MetaTrader5 Expert Advisor code is located in `hypertrader/execution/hypertr
 
 ### Running the autonomous bot
 
-The `hypertrader.bot` module fetches data from Yahoo Finance, optionally gathers news sentiment, and writes a trading signal with calculated position size to `signal.json`. When multiple symbols are provided the bot will automatically trade the one with the highest recent volatility:
+The `hypertrader.bot` module fetches data from supported exchanges via CCXT, optionally gathers news sentiment, and writes a trading signal with calculated position size to `signal.json`. When multiple symbols are provided the bot will automatically trade the one with the highest recent volatility:
 
 ```bash
 python -m hypertrader.bot BTC-USD ETH-USD --account_balance 10000 --risk_percent 5 \
