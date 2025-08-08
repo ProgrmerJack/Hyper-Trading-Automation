@@ -1,10 +1,10 @@
 import asyncio
-import logging
+from typing import Any
 from cryptofeed import FeedHandler
 from cryptofeed.defines import TRADES, TICKER
 from cryptofeed.exchanges import Binance, Coinbase, Kraken
 
-QUEUE = asyncio.Queue(maxsize=10000)
+QUEUE: asyncio.Queue[Any] = asyncio.Queue(maxsize=10000)
 
 def _cb(feed, pair, order):
     asyncio.create_task(QUEUE.put(order))

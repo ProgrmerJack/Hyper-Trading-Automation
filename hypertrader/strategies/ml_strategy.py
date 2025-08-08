@@ -1,9 +1,8 @@
-from __future__ import annotations
-
 """Simple machine learning-based strategy utilities."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 import pandas as pd
 from sklearn.linear_model import LogisticRegression

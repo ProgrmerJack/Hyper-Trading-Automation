@@ -218,8 +218,8 @@ def drl_throttle(state: tuple[float, float]) -> float:
         sb3 = import_module("stable_baselines3")
         gym = import_module("gym")
         # Simple environment describing risk state
-        class RiskEnv(gym.Env):
-            metadata = {"render.modes": []}
+        class RiskEnv(gym.Env):  # type: ignore[name-defined]
+            metadata: dict[str, list[str]] = {"render.modes": []}
 
             def __init__(self):
                 super().__init__()
