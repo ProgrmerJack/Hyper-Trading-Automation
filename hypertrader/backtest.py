@@ -42,7 +42,10 @@ def advanced_backtest(
         exits=exits,
         slippage=slippage_bps / 10000.0,
         fees=fee_bps / 10000.0,
+        freq="1D",
     )
+    # Provide a frequency so metrics like Sharpe and Sortino ratios are computed
+    # without warnings about missing `freq`.
     stats = pf.stats()
     sharpe = pf.sharpe_ratio(freq="1D")
     end_value = float(stats["End Value"]) * leverage
