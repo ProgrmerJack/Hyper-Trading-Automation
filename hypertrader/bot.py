@@ -1,12 +1,14 @@
 from __future__ import annotations
 import json
 import time
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 from collections.abc import Sequence
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from .config import load_config
 from .utils.sentiment import fetch_news_headlines, compute_sentiment_score
@@ -26,6 +28,7 @@ from .utils.risk import (
     ai_var,
     drl_throttle,
     quantum_leverage_modifier,
+    cap_position_value,
 )
 from .utils.volatility import rank_symbols_by_volatility
 from .utils.monitoring import (
@@ -39,7 +42,7 @@ from .utils.logging import get_logger, log_json
 from .strategies.indicator_signals import generate_signal
 from .strategies.ml_strategy import ml_signal
 
-from .data.fetch_data import fetch_yahoo_ohlcv, fetch_order_book
+from .data.fetch_data import fetch_ohlcv, fetch_order_book
 from .data.onchain import fetch_eth_gas_fees
 from .data.macro import (
     fetch_dxy,
@@ -47,10 +50,13 @@ from .data.macro import (
     fetch_global_liquidity,
 )
 from .utils.macro import compute_macro_score
+from .execution.ccxt_executor import place_order
+
+load_dotenv()
 
 def run(
     symbol: str | Sequence[str],
-    account_balance: float = 10000.0,
+    account_balance: float = 100.0,
     risk_percent: float = 5.0,
     news_api_key: str | None = None,
     fred_api_key: str | None = None,
@@ -60,6 +66,8 @@ def run(
     state_path: str | None = None,
     exchange: str | None = None,
     etherscan_api_key: str | None = None,
+    max_exposure: float = 3.0,
+    live: bool = False,
 ) -> None:
     """Run one iteration of the trading pipeline.
 
@@ -78,10 +86,16 @@ def run(
         account_balance = cfg.get("trading", {}).get("account_balance", account_balance)
         risk_percent = cfg.get("trading", {}).get("risk_percent", risk_percent)
         exchange = cfg.get("trading", {}).get("exchange", exchange)
+        max_exposure = cfg.get("trading", {}).get("max_exposure", max_exposure)
         api_keys = cfg.get("api_keys", {})
         news_api_key = api_keys.get("news", news_api_key)
         fred_api_key = api_keys.get("fred", fred_api_key)
         etherscan_api_key = api_keys.get("etherscan", etherscan_api_key)
+
+    # fall back to environment variables for API keys
+    news_api_key = news_api_key or os.getenv("NEWS_API_KEY")
+    fred_api_key = fred_api_key or os.getenv("FRED_API_KEY")
+    etherscan_api_key = etherscan_api_key or os.getenv("ETHERSCAN_API_KEY")
 
     # If a sequence of symbols is provided, pick the most volatile one
     if isinstance(symbol, Sequence) and not isinstance(symbol, str):
@@ -118,8 +132,9 @@ def run(
     if kill:
         log_json(logger, "kill_switch_triggered", drawdown=drawdown)
 
+    ccxt_symbol = symbol.replace('-', '/')
     try:
-        data = fetch_yahoo_ohlcv(symbol)
+        data = fetch_ohlcv(exchange or "binance", ccxt_symbol, timeframe="1m")
     except Exception as exc:
         log_json(logger, "data_fetch_failed", symbol=symbol, error=str(exc))
         return
@@ -138,7 +153,7 @@ def run(
     heatmap_ratio = 1.0
     if exchange:
         try:
-            order_book = fetch_order_book(exchange, symbol.replace('-', '/'))
+            order_book = fetch_order_book(exchange, ccxt_symbol)
             book_skew = order_skew(order_book)
             heatmap_ratio = dom_heatmap_ratio(order_book)
         except Exception as exc:
@@ -225,6 +240,7 @@ def run(
             stop_loss,
         )
         volume *= leverage
+        volume = cap_position_value(volume, price, account_balance, max_exposure)
 
     payload = {
         "action": sig.action,
@@ -236,7 +252,14 @@ def run(
         "leverage": leverage,
         "var": var,
     }
-    Path(signal_path).write_text(json.dumps(payload))
+
+    if live and exchange and sig.action != "HOLD" and volume > 0:
+        try:
+            place_order(exchange, ccxt_symbol, sig.action, volume)
+        except Exception as exc:
+            log_json(logger, "order_failed", error=str(exc))
+    else:
+        Path(signal_path).write_text(json.dumps(payload))
     latency = time.time() - start_time
     monitor_latency(latency)
     monitor_equity(account_balance)
@@ -277,7 +300,7 @@ if __name__ == "__main__":
         nargs="+",
         help="One or more trading pair symbols e.g. BTC-USD ETH-USD",
     )
-    parser.add_argument("--account_balance", type=float, default=10000.0)
+    parser.add_argument("--account_balance", type=float, default=100.0)
     parser.add_argument("--risk_percent", type=float, default=5.0)
     parser.add_argument("--news_api_key")
     parser.add_argument("--fred_api_key")
@@ -288,6 +311,8 @@ if __name__ == "__main__":
     parser.add_argument("--state_path")
     parser.add_argument("--exchange")
     parser.add_argument("--etherscan_api_key")
+    parser.add_argument("--max_exposure", type=float, default=3.0)
+    parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
 
     run(
@@ -302,5 +327,7 @@ if __name__ == "__main__":
         state_path=args.state_path,
         exchange=args.exchange,
         etherscan_api_key=args.etherscan_api_key,
+        max_exposure=args.max_exposure,
+        live=args.live,
     )
 

@@ -11,8 +11,8 @@ import vectorbt as vbt
 def advanced_backtest(
     data: pd.DataFrame,
     strategy_func: Callable[[pd.DataFrame], Tuple[pd.Series, pd.Series]],
-    slippage: float = 0.001,
-    fees: float = 0.0005,
+    slippage_bps: float = 10.0,
+    fee_bps: float = 5.0,
     leverage: float = 1.0,
 ):
     """Run a vectorized backtest on price data.
@@ -23,10 +23,10 @@ def advanced_backtest(
         OHLCV data containing at least a ``close`` column.
     strategy_func : callable
         Function returning ``(entries, exits)`` boolean Series aligned with ``data``.
-    slippage : float, default 0.001
-        Slippage per trade expressed as fraction of price.
-    fees : float, default 0.0005
-        Transaction cost per trade.
+    slippage_bps : float, default 10.0
+        Slippage per trade expressed in basis points.
+    fee_bps : float, default 5.0
+        Transaction cost per trade in basis points.
     leverage : float, default 1.0
         Multiplier applied to portfolio end value to approximate leverage.
 
@@ -40,8 +40,8 @@ def advanced_backtest(
         close=data["close"],
         entries=entries,
         exits=exits,
-        slippage=slippage,
-        fees=fees,
+        slippage=slippage_bps / 10000.0,
+        fees=fee_bps / 10000.0,
     )
     stats = pf.stats()
     sharpe = pf.sharpe_ratio(freq="1D")

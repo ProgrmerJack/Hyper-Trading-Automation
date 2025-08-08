@@ -19,6 +19,40 @@ def calculate_position_size(account_balance: float, risk_percent: float, entry_p
     return volume
 
 
+def cap_position_value(
+    volume: float,
+    price: float,
+    account_balance: float,
+    max_exposure: float,
+) -> float:
+    """Clamp position size so notional does not exceed allowed exposure.
+
+    Parameters
+    ----------
+    volume : float
+        Position size in units of the base asset.
+    price : float
+        Current asset price.
+    account_balance : float
+        Current account equity.
+    max_exposure : float
+        Maximum allowable exposure expressed as a multiple of equity
+        (e.g. ``3`` for ``3x`` the account balance).
+
+    Returns
+    -------
+    float
+        Adjusted volume respecting the exposure cap.
+    """
+    if any(x < 0 for x in (volume, price, account_balance, max_exposure)):
+        raise ValueError("inputs must be non-negative")
+    max_value = account_balance * max_exposure
+    value = volume * price
+    if value > max_value and price > 0:
+        return max_value / price
+    return volume
+
+
 def trailing_stop(entry_price: float, current_price: float, atr: float, multiplier: float = 2.0) -> float:
     """Compute a trailing stop level based on ATR.
 
@@ -268,6 +302,7 @@ __all__ = [
     "drawdown_throttle",
     "kill_switch",
     "dynamic_leverage",
+    "cap_position_value",
     "compound_capital",
     "volatility_scaled_stop",
     "ai_var",
