@@ -57,7 +57,7 @@ from .risk.manager import RiskManager, RiskParams
 
 load_dotenv()
 
-def run(
+async def _run(
     symbol: str | Sequence[str],
     account_balance: float = 100.0,
     risk_percent: float = 5.0,
@@ -139,6 +139,8 @@ def run(
         fee_rate=risk_cfg.get("fee_rate", 0.0),
         slippage=risk_cfg.get("slippage", 0.0),
         symbol_limits=risk_cfg.get("symbol_limits"),
+        max_var=risk_cfg.get("max_var"),
+        max_volatility=risk_cfg.get("max_volatility"),
     )
     risk_manager = RiskManager(params)
     risk_manager.reset_day(account_balance)
@@ -147,7 +149,7 @@ def run(
     if live and exchange and open_orders:
         for oid, info in list(open_orders.items()):
             try:
-                asyncio.run(cancel_order(info["symbol"], oid))
+                await cancel_order(info["symbol"], oid)
                 del open_orders[oid]
             except Exception as exc:
                 log_json(logger, "cancel_failed", order_id=oid, error=str(exc))
@@ -157,50 +159,69 @@ def run(
         log_json(logger, "kill_switch_triggered", drawdown=drawdown)
 
     ccxt_symbol = symbol.replace('-', '/')
-    try:
-        data = fetch_ohlcv(exchange or "binance", ccxt_symbol, timeframe="1m")
-    except Exception as exc:
-        log_json(logger, "data_fetch_failed", symbol=symbol, error=str(exc))
+    tasks: list[asyncio.Future] = []
+    keys: list[str] = []
+    tasks.append(asyncio.to_thread(fetch_ohlcv, exchange or "binance", ccxt_symbol, "1m"))
+    keys.append("data")
+    if etherscan_api_key:
+        tasks.append(asyncio.to_thread(fetch_eth_gas_fees, etherscan_api_key))
+        keys.append("gas")
+    if exchange:
+        tasks.append(asyncio.to_thread(fetch_order_book, exchange, ccxt_symbol))
+        keys.append("order_book")
+    if news_api_key:
+        tasks.append(asyncio.to_thread(fetch_news_headlines, news_api_key, query=symbol))
+        keys.append("news")
+    if fred_api_key:
+        tasks.append(asyncio.to_thread(fetch_dxy, api_key=fred_api_key))
+        keys.append("dxy")
+        tasks.append(asyncio.to_thread(fetch_interest_rate, fred_api_key))
+        keys.append("rates")
+        tasks.append(asyncio.to_thread(fetch_global_liquidity, fred_api_key))
+        keys.append("liquidity")
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    result_map = dict(zip(keys, results))
+
+    data = result_map.get("data")
+    if isinstance(data, Exception):
+        log_json(logger, "data_fetch_failed", symbol=symbol, error=str(data))
         return
 
-    # On-chain metrics
     onchain_score = 0.0
-    if etherscan_api_key is not None:
-        try:
-            gas_df = fetch_eth_gas_fees(etherscan_api_key)
-            onchain_score = float(onchain_zscore(gas_df).iloc[-1])
-        except Exception as exc:
-            log_json(logger, "onchain_fetch_failed", error=str(exc))
+    gas_df = result_map.get("gas")
+    if isinstance(gas_df, Exception):
+        log_json(logger, "onchain_fetch_failed", error=str(gas_df))
+    elif gas_df is not None:
+        onchain_score = float(onchain_zscore(gas_df).iloc[-1])
 
-    # Order book metrics
     book_skew = 0.0
     heatmap_ratio = 1.0
-    if exchange:
-        try:
-            order_book = fetch_order_book(exchange, ccxt_symbol)
-            book_skew = order_skew(order_book)
-            heatmap_ratio = dom_heatmap_ratio(order_book)
-        except Exception as exc:
-            log_json(logger, "order_book_fetch_failed", error=str(exc))
+    order_book = result_map.get("order_book")
+    if isinstance(order_book, Exception):
+        log_json(logger, "order_book_fetch_failed", error=str(order_book))
+    elif order_book is not None:
+        book_skew = order_skew(order_book)
+        heatmap_ratio = dom_heatmap_ratio(order_book)
 
     headlines: list[str] = []
-    if news_api_key:
-        try:
-            headlines = fetch_news_headlines(news_api_key, query=symbol)
-        except Exception as exc:
-            log_json(logger, "news_fetch_failed", error=str(exc))
+    news = result_map.get("news")
+    if isinstance(news, Exception):
+        log_json(logger, "news_fetch_failed", error=str(news))
+    elif news is not None:
+        headlines = news
     sentiment = compute_sentiment_score(headlines)
 
     macro_score = 0.0
     if fred_api_key:
-        try:
-            dxy = fetch_dxy(api_key=fred_api_key)
-            rates = fetch_interest_rate(fred_api_key)
-            liquidity = fetch_global_liquidity(fred_api_key)
+        dxy = result_map.get("dxy")
+        rates = result_map.get("rates")
+        liquidity = result_map.get("liquidity")
+        if any(isinstance(r, Exception) for r in (dxy, rates, liquidity)):
+            err = ";".join(str(r) for r in (dxy, rates, liquidity) if isinstance(r, Exception))
+            log_json(logger, "macro_fetch_failed", error=err)
+        else:
             macro_score = compute_macro_score(dxy, rates, liquidity)
-        except Exception as exc:
-            log_json(logger, "macro_fetch_failed", error=str(exc))
-            macro_score = 0.0
 
     sig = generate_signal(
         data,
@@ -243,6 +264,11 @@ def run(
     if kill:
         sig.action = "HOLD"
 
+    if params.max_var and var > params.max_var:
+        sig.action = "HOLD"
+    if params.max_volatility and volatility > params.max_volatility:
+        sig.action = "HOLD"
+
     if sig.action == "BUY":
         stop_loss = volatility_scaled_stop(price, vix=volatility * 100, long=True)
         stop_loss = max(stop_loss, trailing_stop(price, price, atr))
@@ -282,7 +308,7 @@ def run(
         if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
             client_id = uuid.uuid4().hex
             try:
-                asyncio.run(place_order(ccxt_symbol, sig.action, volume, client_id=client_id))
+                await place_order(ccxt_symbol, sig.action, volume, client_id=client_id)
                 open_orders[client_id] = {"symbol": ccxt_symbol, "side": sig.action, "volume": volume}
                 payload["client_order_id"] = client_id
             except Exception as exc:
@@ -325,6 +351,41 @@ def run(
     elif "open_orders" in state:
         del state["open_orders"]
     state_file.write_text(json.dumps(state))
+
+
+def run(
+    symbol: str | Sequence[str],
+    account_balance: float = 100.0,
+    risk_percent: float = 5.0,
+    news_api_key: str | None = None,
+    fred_api_key: str | None = None,
+    model_path: str | None = None,
+    signal_path: str = "signal.json",
+    config_path: str | None = None,
+    state_path: str | Path | None = None,
+    exchange: str | None = None,
+    etherscan_api_key: str | None = None,
+    max_exposure: float = 3.0,
+    live: bool = False,
+) -> None:
+    """Synchronous wrapper that executes the async trading pipeline."""
+    asyncio.run(
+        _run(
+            symbol,
+            account_balance=account_balance,
+            risk_percent=risk_percent,
+            news_api_key=news_api_key,
+            fred_api_key=fred_api_key,
+            model_path=model_path,
+            signal_path=signal_path,
+            config_path=config_path,
+            state_path=state_path,
+            exchange=exchange,
+            etherscan_api_key=etherscan_api_key,
+            max_exposure=max_exposure,
+            live=live,
+        )
+    )
 
 
 if __name__ == "__main__":
