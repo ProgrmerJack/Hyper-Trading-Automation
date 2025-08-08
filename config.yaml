@@ -1,11 +1,12 @@
-api_keys: {}
 trading:
-  symbol: "BTC-USD"
+  exchange: binance
+  symbols: ["BTC/USDT", "ETH/USDT"]
   account_balance: 100.0
   risk_percent: 5.0
-  max_exposure: 3.0
-backtest:
-  start: "2024-01-01"
-  end: "2024-06-01"
-  fee_bps: 10.0
-  slippage_bps: 5.0
+fees:
+  maker_bps: -2
+  taker_bps: 10
+data:
+  use_websocket: true
+  fallback_rest: true
+  rest_rate_limit_per_min: 1200

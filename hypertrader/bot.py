@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import json
 import time
 import os
@@ -255,7 +256,7 @@ def run(
 
     if live and exchange and sig.action != "HOLD" and volume > 0:
         try:
-            place_order(exchange, ccxt_symbol, sig.action, volume)
+            asyncio.run(place_order(ccxt_symbol, sig.action, volume))
         except Exception as exc:
             log_json(logger, "order_failed", error=str(exc))
     else:
