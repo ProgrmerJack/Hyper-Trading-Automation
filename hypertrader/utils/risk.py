@@ -4,7 +4,10 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Sequence
 
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_position_size(account_balance: float, risk_percent: float, entry_price: float, stop_loss_price: float) -> float:
@@ -239,7 +242,8 @@ def drl_throttle(state: tuple[float, float]) -> float:
         model.learn(100)
         action, _ = model.predict(np.array([drawdown, vol]))
         return float(action[0])
-    except Exception:
+    except Exception as exc:
+        logger.warning("drl_throttle_fallback: %s", exc)
         # fallback heuristic
         return float(max(0.1, 1 - drawdown - vol))
 
@@ -273,7 +277,8 @@ def quantum_leverage_modifier(
     try:  # pragma: no cover - optional dependency
         from qiskit import Aer, execute
         from qiskit.circuit.library import EfficientSU2
-    except Exception:
+    except Exception as exc:
+        logger.warning("quantum_leverage_fallback: %s", exc)
         return 1.0
 
     qc = EfficientSU2(n_qubits)

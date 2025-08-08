@@ -22,6 +22,12 @@ class RiskParams:
     symbol_limits: dict[str, float] | None = None
     """Optional per-symbol exposure caps."""
 
+    max_var: float | None = None
+    """Optional Value-at-Risk threshold that halts trading when exceeded."""
+
+    max_volatility: float | None = None
+    """Optional volatility limit expressed as a decimal (e.g. ``0.1`` for 10%)."""
+
 
 class RiskManager:
     """Simple risk gate evaluated before every order.
