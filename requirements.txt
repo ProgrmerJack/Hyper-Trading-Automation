@@ -1,4 +1,5 @@
 ccxt==4.3.22
+cryptofeed==2.4.1
 pandas==2.2.2
 vaderSentiment==3.3.2
 requests==2.32.3
