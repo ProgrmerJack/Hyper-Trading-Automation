@@ -6,7 +6,7 @@ from typing import Protocol, AsyncIterator, Dict, Any
 class DataFeed(Protocol):
     """Protocol for async market data feeds."""
 
-    async def stream(self) -> AsyncIterator[Dict[str, Any]]:
+    def stream(self) -> AsyncIterator[Dict[str, Any]]:
         ...
 
 

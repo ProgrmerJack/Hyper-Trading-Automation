@@ -64,7 +64,7 @@ def run(
     model_path: str | None = None,
     signal_path: str = "signal.json",
     config_path: str | None = None,
-    state_path: str | None = None,
+    state_path: str | Path | None = None,
     exchange: str | None = None,
     etherscan_api_key: str | None = None,
     max_exposure: float = 3.0,
