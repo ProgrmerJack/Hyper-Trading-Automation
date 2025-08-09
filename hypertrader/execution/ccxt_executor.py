@@ -21,6 +21,8 @@ async def place_order(
     price: float | None = None,
     client_id: str | None = None,
     params: dict | None = None,
+    post_only: bool = False,
+    reduce_only: bool = False,
 ):
     """Place an order after validating venue limits.
 
@@ -38,12 +40,27 @@ async def place_order(
         Optional idempotency key.  A random UUID will be generated if not provided.
     params : dict | None, optional
         Additional parameters for the CCXT order call.
+    post_only : bool, optional
+        When ``True`` the order is submitted with a post-only flag.  Raises
+        ``RuntimeError`` if the venue does not support it.
+    reduce_only : bool, optional
+        When ``True`` the order is submitted with a reduce-only flag.  Raises
+        ``RuntimeError`` if unsupported by the venue.
     """
 
     params = params.copy() if params else {}
     if client_id is None:
         client_id = uuid.uuid4().hex
     params.setdefault("clientOrderId", client_id)
+
+    if post_only:
+        if not ex.has.get("createPostOnlyOrder", False):
+            raise RuntimeError("post-only orders not supported")
+        params["postOnly"] = True
+    if reduce_only:
+        if not ex.has.get("createReduceOnlyOrder", False):
+            raise RuntimeError("reduce-only orders not supported")
+        params["reduceOnly"] = True
 
     await ex.load_markets()
     market = ex.market(symbol)

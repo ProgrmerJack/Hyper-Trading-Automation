@@ -8,7 +8,7 @@ and steps required before high‑risk deployment.
 
 ## Features
 
-- Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) and stream candles via its built-in WebSocket support.
+- Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) REST APIs and stream real-time candles via free exchange WebSocket endpoints.
 - Compute technical indicators such as moving averages, EMA, SuperTrend, RSI, MACD, Bollinger Bands, VWAP, On-Balance Volume,
   ADX, Stochastic oscillator, Rate of Change, TWAP, CCI, Keltner Channels, exchange net flow, volatility clustering index,
   Fibonacci retracements, WaveTrend oscillator, multi-timeframe RSI, volume profile point of control, Ichimoku Cloud,
@@ -31,9 +31,9 @@ and steps required before high‑risk deployment.
 - Enhanced machine learning features include MACD histogram, VWAP distance, OBV, volatility clustering, exchange net flow,
   WaveTrend, multi-timeframe RSI and distance from volume profile POC to better capture momentum, volume and on-chain pressure.
 - Resilient data fetching with retry and optional exchange fallback.
-- WebSocket data ingestion via CCXT's async support with automatic
-  heartbeat/reconnect and a minimal FIX execution skeleton for low-latency
-  broker connectivity.
+- WebSocket data ingestion via direct exchange connections (no paid
+  dependencies) with automatic heartbeat/reconnect and a minimal FIX
+  execution skeleton for low-latency broker connectivity.
 - Vectorized backtesting helper built on [vectorbt](https://github.com/vectorbt/vectorbt).
 - Backtester accepts leverage to simulate capital amplification and risk.
 - Multi-strategy helpers including basic arbitrage and market-making examples.
