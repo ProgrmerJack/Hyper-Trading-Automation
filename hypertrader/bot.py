@@ -45,7 +45,7 @@ from .strategies.indicator_signals import generate_signal
 from .strategies.ml_strategy import ml_signal
 
 from .data.fetch_data import fetch_ohlcv, fetch_order_book
-from .data.order_store import OrderStore
+from .data.oms_store import OMSStore
 from .data.onchain import fetch_eth_gas_fees
 from .data.macro import (
     fetch_dxy,
@@ -53,7 +53,7 @@ from .data.macro import (
     fetch_global_liquidity,
 )
 from .utils.macro import compute_macro_score
-from .execution.ccxt_executor import place_order, cancel_order
+from .execution.ccxt_executor import place_order, cancel_order, ex
 from .risk.manager import RiskManager, RiskParams
 
 load_dotenv()
@@ -132,10 +132,10 @@ async def _run(
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
-    store = OrderStore(state_file.with_suffix(".db"))
+    store = OMSStore(state_file.with_suffix(".db"))
     open_orders: dict[str, Any] = {
         oid: {"symbol": sym, "side": side, "volume": vol}
-        for oid, sym, side, vol, _ in store.fetch_all()
+        for oid, sym, side, vol, _ in store.fetch_open_orders()
     }
 
     risk_cfg = cfg.get("risk", {}) if config_path else {}
@@ -151,12 +151,63 @@ async def _run(
     risk_manager = RiskManager(params)
     risk_manager.reset_day(account_balance)
 
+    ccxt_symbol = symbol.replace('-', '/')
+
+    # reconcile open orders and positions with the exchange
+    if live and exchange:
+        try:
+            remote_orders = await ex.fetch_open_orders(ccxt_symbol)
+        except Exception:
+            remote_orders = []
+        remote_ids = {o.get("clientOrderId") or o.get("id") for o in remote_orders}
+        for oid in list(open_orders):
+            if oid not in remote_ids:
+                store.remove_order(oid)
+                del open_orders[oid]
+        for o in remote_orders:
+            cid = o.get("clientOrderId") or o.get("id")
+            if cid and cid not in open_orders:
+                store.record_order(
+                    cid,
+                    o.get("clientOrderId"),
+                    o.get("symbol", ccxt_symbol),
+                    o.get("side", ""),
+                    float(o.get("amount") or o.get("remaining") or 0.0),
+                    o.get("price"),
+                    o.get("status", "open"),
+                    (o.get("timestamp") or 0) / 1000,
+                )
+                open_orders[cid] = {
+                    "symbol": o.get("symbol", ccxt_symbol),
+                    "side": o.get("side", ""),
+                    "volume": float(o.get("amount") or o.get("remaining") or 0.0),
+                }
+        try:
+            positions = await ex.fetch_positions([ccxt_symbol])
+            for p in positions:
+                qty = float(
+                    p.get("contracts")
+                    or p.get("positionAmt")
+                    or p.get("size")
+                    or 0.0
+                )
+                if qty:
+                    store.upsert_position(
+                        p.get("symbol", ccxt_symbol),
+                        qty,
+                        float(p.get("entryPrice") or 0.0),
+                        float(p.get("liquidationPrice") or 0.0),
+                        time.time(),
+                    )
+        except Exception:
+            pass
+
     # cancel any lingering open orders from previous session
     if live and exchange and open_orders:
         for oid, info in list(open_orders.items()):
             try:
                 await cancel_order(info["symbol"], oid)
-                store.remove(oid)
+                store.remove_order(oid)
                 del open_orders[oid]
             except Exception as exc:
                 log_json(logger, "cancel_failed", order_id=oid, error=str(exc))
@@ -164,8 +215,6 @@ async def _run(
     kill = kill_switch(drawdown)
     if kill:
         log_json(logger, "kill_switch_triggered", drawdown=drawdown)
-
-    ccxt_symbol = symbol.replace('-', '/')
     tasks: list[asyncio.Future] = []
     keys: list[str] = []
     if data is None:
@@ -320,9 +369,24 @@ async def _run(
         if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
             client_id = uuid.uuid4().hex
             try:
-                await place_order(ccxt_symbol, sig.action, volume, client_id=client_id)
-                open_orders[client_id] = {"symbol": ccxt_symbol, "side": sig.action, "volume": volume}
-                store.record(client_id, ccxt_symbol, sig.action, volume, time.time())
+                order_resp = await place_order(
+                    ccxt_symbol, sig.action, volume, client_id=client_id
+                )
+                open_orders[client_id] = {
+                    "symbol": ccxt_symbol,
+                    "side": sig.action,
+                    "volume": volume,
+                }
+                store.record_order(
+                    client_id,
+                    client_id,
+                    ccxt_symbol,
+                    sig.action,
+                    volume,
+                    order_resp.get("price"),
+                    order_resp.get("status", "open"),
+                    time.time(),
+                )
                 payload["client_order_id"] = client_id
             except Exception as exc:
                 log_json(logger, "order_failed", error=str(exc))
