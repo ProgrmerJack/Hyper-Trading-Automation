@@ -1,10 +1,12 @@
 import ccxt
-import ccxt.async_support as ccxt_async
 import asyncio
 import pandas as pd
 from typing import AsyncIterator, Dict, Any, Optional
+import time
 
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+from ..feeds.exchange_ws import ExchangeWebSocketFeed
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
@@ -73,15 +75,17 @@ def fetch_order_book(exchange_name: str, symbol: str, limit: int = 5) -> dict:
         exchange.close()
 
 
-async def websocket_ingest(symbol: str, exchange_name: str = "binance") -> AsyncIterator[Dict[str, Any]]:
-    """Stream ticker updates via WebSocket using CCXT's async support.
+async def websocket_ingest(symbol: str, exchange_name: str = "binance", heartbeat: int = 30) -> AsyncIterator[Dict[str, Any]]:
+    """Stream ticker updates via direct exchange WebSockets.
 
     Parameters
     ----------
     symbol : str
         Trading pair symbol like ``'BTC/USDT'``.
     exchange_name : str, default ``"binance"``
-        Exchange name supported by CCXT.
+        Exchange identifier.
+    heartbeat : int, optional
+        Seconds to wait before considering the connection stale.
 
     Yields
     ------
@@ -89,11 +93,17 @@ async def websocket_ingest(symbol: str, exchange_name: str = "binance") -> Async
         Raw ticker information from the exchange.
     """
 
-    exchange_class = getattr(ccxt_async, exchange_name)
-    exchange = exchange_class({"enableRateLimit": True})
-    while True:
-        ticker = await exchange.watch_ticker(symbol)
-        yield ticker
+    ws_symbol = symbol
+    if exchange_name.lower() == "binance":
+        ws_symbol = symbol.replace("/", "").replace("-", "").lower()
+    elif exchange_name.lower() == "bybit":
+        ws_symbol = symbol.replace("/", "").replace("-", "").upper()
+
+    feed = ExchangeWebSocketFeed(exchange_name, ws_symbol, heartbeat=heartbeat)
+    async for msg in feed.stream():
+        if msg is None:
+            continue
+        yield msg
 
 
 async def stream_ohlcv(
@@ -102,25 +112,41 @@ async def stream_ohlcv(
     exchange_name: str = "binance",
     queue: Optional[asyncio.Queue] = None,
 ) -> AsyncIterator[list[float]]:
-    """Stream OHLCV candles via CCXT's async WebSocket support.
+    """Stream OHLCV candles using ticker WebSocket data.
 
-    Parameters
-    ----------
-    symbol : str
-        Trading pair symbol like ``'BTC/USDT'``.
-    timeframe : str, default ``"1m"``
-        Candle timeframe to subscribe to.
-    exchange_name : str, default ``"binance"``
-        Exchange name supported by CCXT.
-    queue : asyncio.Queue, optional
-        If provided, received candles are placed into the queue instead of
-        being yielded.
+    This derives candle information from the live ticker feed as a lightweight
+    alternative to CCXT Pro.  It currently supports Binance and Bybit tickers.
     """
 
-    exchange_class = getattr(ccxt_async, exchange_name)
-    exchange = exchange_class({"enableRateLimit": True})
-    while True:
-        candle = await exchange.watch_ohlcv(symbol, timeframe)
+    ws_symbol = symbol
+    if exchange_name.lower() == "binance":
+        ws_symbol = symbol.replace("/", "").replace("-", "").lower()
+    elif exchange_name.lower() == "bybit":
+        ws_symbol = symbol.replace("/", "").replace("-", "").upper()
+
+    feed = ExchangeWebSocketFeed(exchange_name, ws_symbol)
+    async for msg in feed.stream():
+        if msg is None:
+            continue
+        ts = int(time.time() * 1000)
+        if exchange_name.lower() == "binance":
+            candle = [
+                ts,
+                float(msg["o"]),
+                float(msg["h"]),
+                float(msg["l"]),
+                float(msg["c"]),
+                float(msg.get("v", 0.0)),
+            ]
+        else:  # bybit
+            candle = [
+                ts,
+                float(msg["openPrice24h"]),
+                float(msg["highPrice24h"]),
+                float(msg["lowPrice24h"]),
+                float(msg["lastPrice"]),
+                float(msg.get("turnover24h", 0.0)),
+            ]
         if queue is not None:
             await queue.put(candle)
         else:

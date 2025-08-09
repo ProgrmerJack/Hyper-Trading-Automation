@@ -21,3 +21,4 @@ transformers==4.40.1
 python-dotenv==1.1.1
 ruff==0.4.5
 mypy==1.10.0
+websockets==15.0.1

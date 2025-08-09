@@ -47,19 +47,27 @@ def test_fetch_ohlcv_with_fallback(monkeypatch):
 
 
 def test_stream_ohlcv(monkeypatch):
-    class DummyExchange:
-        def __init__(self, *args, **kwargs):
+    class DummyFeed:
+        def __init__(self, exchange, symbol, heartbeat=30):
             pass
 
-        async def watch_ohlcv(self, symbol, timeframe):
-            return [0, 1, 1, 1, 1, 1]
+        async def stream(self):
+            yield {
+                "o": 1,
+                "h": 1,
+                "l": 1,
+                "c": 1,
+                "v": 1,
+            }
 
-    monkeypatch.setattr("ccxt.async_support.binance", DummyExchange)
+    monkeypatch.setattr(
+        "hypertrader.data.fetch_data.ExchangeWebSocketFeed", DummyFeed
+    )
 
     async def run():
         gen = stream_ohlcv("BTC/USDT")
         candle = await gen.__anext__()
-        assert candle[0] == 0
+        assert candle[1] == 1
 
     asyncio.run(run())
 
