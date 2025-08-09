@@ -8,7 +8,7 @@ and steps required before high‑risk deployment.
 
 ## Features
 
-- Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) REST APIs and stream real-time candles via free exchange WebSocket endpoints.
+- Fetch OHLCV price data from cryptocurrency exchanges using [CCXT](https://github.com/ccxt/ccxt) REST APIs and stream real-time candles via direct Binance/Bybit WebSocket endpoints (no CCXT Pro).
 - Compute technical indicators such as moving averages, EMA, SuperTrend, RSI, MACD, Bollinger Bands, VWAP, On-Balance Volume,
   ADX, Stochastic oscillator, Rate of Change, TWAP, CCI, Keltner Channels, exchange net flow, volatility clustering index,
   Fibonacci retracements, WaveTrend oscillator, multi-timeframe RSI, volume profile point of control, Ichimoku Cloud,
@@ -88,7 +88,7 @@ When not operating live, the bot writes decisions to `signal.json` for offline i
 
 ### Running the autonomous bot
 
-The `hypertrader.bot` module fetches data from supported exchanges via CCXT, optionally gathers news sentiment, and when run in live mode places orders directly via CCXT. When not live it writes a trading signal with calculated position size to `signal.json`. When multiple symbols are provided the bot will automatically trade the one with the highest recent volatility:
+The `hypertrader.bot` module fetches data from supported exchanges via CCXT REST and consumes live candles from direct exchange WebSockets. When run in live mode it places orders via CCXT. When not live it writes a trading signal with calculated position size to `signal.json`. When multiple symbols are provided the bot will automatically trade the one with the highest recent volatility:
 
 ```bash
 python -m hypertrader.bot BTC-USD ETH-USD --account_balance 10000 --risk_percent 5 \
