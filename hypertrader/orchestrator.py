@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from .bot import _run
 from .feeds.exchange_ws import ExchangeWebSocketFeed
+from .execution.ccxt_executor import cancel_all
 
 
 @dataclass
@@ -51,7 +52,14 @@ class TradingOrchestrator:
                 ws_symbol = symbol.replace("/", "").replace("-", "").upper()
             feed = ExchangeWebSocketFeed(exchange, ws_symbol)
             try:
-                async for _ in feed.stream():
+                async for msg in feed.stream():
+                    if msg is None:
+                        # heartbeat missed -> cancel outstanding orders
+                        try:
+                            await cancel_all()
+                        except Exception:
+                            pass
+                        continue
                     await self._cycle()
                     cycles += 1
                     if self.max_cycles is not None and cycles >= self.max_cycles:

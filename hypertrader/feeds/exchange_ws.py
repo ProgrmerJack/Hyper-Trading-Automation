@@ -42,7 +42,12 @@ class ExchangeWebSocketFeed:
             raise ValueError("unsupported exchange")
 
     async def stream(self) -> AsyncIterator[Dict]:
-        """Yield ticker messages indefinitely with automatic reconnection."""
+        """Yield ticker messages indefinitely with automatic reconnection.
+
+        When the heartbeat is missed the feed reconnects and yields ``None`` to
+        signal a disconnect event to the caller.
+        """
+
         backoff = 1
         while True:
             if self._ws is None:
@@ -63,6 +68,8 @@ class ExchangeWebSocketFeed:
                         await self._ws.close()
                 finally:
                     self._ws = None
+                # notify caller of disconnect so it can trigger safeguards
+                yield None
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30)
 
