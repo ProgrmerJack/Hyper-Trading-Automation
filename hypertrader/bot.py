@@ -45,6 +45,7 @@ from .strategies.indicator_signals import generate_signal
 from .strategies.ml_strategy import ml_signal
 
 from .data.fetch_data import fetch_ohlcv, fetch_order_book
+from .data.order_store import OrderStore
 from .data.onchain import fetch_eth_gas_fees
 from .data.macro import (
     fetch_dxy,
@@ -71,6 +72,7 @@ async def _run(
     etherscan_api_key: str | None = None,
     max_exposure: float = 3.0,
     live: bool = False,
+    data: pd.DataFrame | None = None,
 ) -> None:
     """Run one iteration of the trading pipeline.
 
@@ -130,7 +132,11 @@ async def _run(
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
-    open_orders: dict[str, Any] = state.get("open_orders", {})
+    store = OrderStore(state_file.with_suffix(".db"))
+    open_orders: dict[str, Any] = {
+        oid: {"symbol": sym, "side": side, "volume": vol}
+        for oid, sym, side, vol, _ in store.fetch_all()
+    }
 
     risk_cfg = cfg.get("risk", {}) if config_path else {}
     params = RiskParams(
@@ -150,6 +156,7 @@ async def _run(
         for oid, info in list(open_orders.items()):
             try:
                 await cancel_order(info["symbol"], oid)
+                store.remove(oid)
                 del open_orders[oid]
             except Exception as exc:
                 log_json(logger, "cancel_failed", order_id=oid, error=str(exc))
@@ -161,8 +168,9 @@ async def _run(
     ccxt_symbol = symbol.replace('-', '/')
     tasks: list[asyncio.Future] = []
     keys: list[str] = []
-    tasks.append(asyncio.to_thread(fetch_ohlcv, exchange or "binance", ccxt_symbol, "1m"))
-    keys.append("data")
+    if data is None:
+        tasks.append(asyncio.to_thread(fetch_ohlcv, exchange or "binance", ccxt_symbol, "1m"))
+        keys.append("data")
     if etherscan_api_key:
         tasks.append(asyncio.to_thread(fetch_eth_gas_fees, etherscan_api_key))
         keys.append("gas")
@@ -180,13 +188,17 @@ async def _run(
         tasks.append(asyncio.to_thread(fetch_global_liquidity, fred_api_key))
         keys.append("liquidity")
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    result_map = dict(zip(keys, results))
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        result_map = dict(zip(keys, results))
+    else:
+        result_map = {}
 
-    data = result_map.get("data")
-    if isinstance(data, Exception):
-        log_json(logger, "data_fetch_failed", symbol=symbol, error=str(data))
-        return
+    if data is None:
+        data = result_map.get("data")
+        if isinstance(data, Exception) or data is None:
+            log_json(logger, "data_fetch_failed", symbol=symbol, error=str(data))
+            return
 
     onchain_score = 0.0
     gas_df = result_map.get("gas")
@@ -310,6 +322,7 @@ async def _run(
             try:
                 await place_order(ccxt_symbol, sig.action, volume, client_id=client_id)
                 open_orders[client_id] = {"symbol": ccxt_symbol, "side": sig.action, "volume": volume}
+                store.record(client_id, ccxt_symbol, sig.action, volume, time.time())
                 payload["client_order_id"] = client_id
             except Exception as exc:
                 log_json(logger, "order_failed", error=str(exc))
@@ -346,11 +359,8 @@ async def _run(
     state["peak_equity"] = max(peak_equity, account_balance)
     state["equity"] = account_balance
     state["latencies"] = latencies
-    if open_orders:
-        state["open_orders"] = open_orders
-    elif "open_orders" in state:
-        del state["open_orders"]
     state_file.write_text(json.dumps(state))
+    store.close()
 
 
 def run(
