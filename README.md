@@ -61,9 +61,9 @@ pip install -r requirements.txt
 
 Runtime options such as default trading symbols and risk parameters are stored
 in `config.yaml`. A `config.sample.yaml` is provided as a template – copy it to
-`config.yaml` and adjust values for your environment. API keys are **not**
-stored in the YAML file and should instead be supplied via environment
-variables:
+`config.yaml` (which is git‑ignored) and adjust values for your environment.
+API keys are **not** stored in the YAML file and should instead be supplied via
+environment variables:
 
 ```bash
 export FRED_API_KEY=your_fred_key
