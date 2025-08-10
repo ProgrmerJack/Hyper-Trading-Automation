@@ -3,9 +3,17 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import random
 from typing import AsyncIterator, Dict, Optional
 
 import websockets
+
+from ..utils.monitoring import (
+    ws_ping_counter,
+    ws_pong_counter,
+    ws_ping_rtt_histogram,
+    ws_reconnect_counter,
+)
 
 
 class ExchangeWebSocketFeed:
@@ -49,28 +57,48 @@ class ExchangeWebSocketFeed:
         """
 
         backoff = 1
+        missed = 0
         while True:
             if self._ws is None:
                 try:
                     await self._connect()
                     backoff = 1
+                    ws_reconnect_counter.inc()
                 except Exception:
-                    await asyncio.sleep(backoff)
+                    await asyncio.sleep(backoff + random.uniform(0, backoff))
                     backoff = min(backoff * 2, 30)
                     continue
             try:
+                start = time.perf_counter()
+                ping = self._ws.ping()
+                ws_ping_counter.inc()
+                await asyncio.wait_for(ping, timeout=self.heartbeat)
+                ws_pong_counter.inc()
+                ws_ping_rtt_histogram.observe(time.perf_counter() - start)
                 msg = await asyncio.wait_for(self._ws.recv(), timeout=self.heartbeat)
                 self._last_msg = time.time()
+                missed = 0
                 yield json.loads(msg)
+            except asyncio.TimeoutError:
+                missed += 1
+                if missed < 3:
+                    continue
+                try:
+                    if self._ws is not None:
+                        await self._ws.close()
+                finally:
+                    self._ws = None
+                yield None
+                await asyncio.sleep(backoff + random.uniform(0, backoff))
+                backoff = min(backoff * 2, 30)
             except Exception:
                 try:
                     if self._ws is not None:
                         await self._ws.close()
                 finally:
                     self._ws = None
-                # notify caller of disconnect so it can trigger safeguards
                 yield None
-                await asyncio.sleep(backoff)
+                await asyncio.sleep(backoff + random.uniform(0, backoff))
                 backoff = min(backoff * 2, 30)
 
     async def close(self) -> None:

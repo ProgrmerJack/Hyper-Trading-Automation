@@ -6,12 +6,20 @@ import uuid
 import ccxt.async_support as ccxt
 
 from .validators import validate_order
+from .rate_limiter import TokenBucket
 
 ex = getattr(ccxt, os.getenv("EXCHANGE", "binance"))({
     "apiKey": os.getenv("API_KEY"),
     "secret": os.getenv("API_SECRET"),
     "enableRateLimit": True,
 })
+
+_create_limiter = TokenBucket(
+    float(os.getenv("CREATE_RATE", "10")), int(os.getenv("CREATE_BURST", "10"))
+)
+_cancel_limiter = TokenBucket(
+    float(os.getenv("CANCEL_RATE", "10")), int(os.getenv("CANCEL_BURST", "10"))
+)
 
 
 async def place_order(
@@ -78,6 +86,7 @@ async def place_order(
         if time_in_force:
             params["timeInForce"] = time_in_force
 
+    await _create_limiter.acquire()
     await ex.load_markets()
     market = ex.market(symbol)
     if price is not None:
@@ -100,6 +109,7 @@ async def place_order(
 async def cancel_order(symbol: str, order_id: str):
     """Cancel a specific order by id."""
 
+    await _cancel_limiter.acquire()
     await ex.load_markets()
     return await ex.cancel_order(order_id, symbol)
 
@@ -109,8 +119,10 @@ async def cancel_all(symbol: str | None = None):
 
     await ex.load_markets()
     if ex.has.get("cancelAllOrders", False):
+        await _cancel_limiter.acquire()
         return await ex.cancel_all_orders(symbol)
     open_orders = await ex.fetch_open_orders(symbol)
     for order in open_orders:
+        await _cancel_limiter.acquire()
         await ex.cancel_order(order["id"], order["symbol"])
     return open_orders
