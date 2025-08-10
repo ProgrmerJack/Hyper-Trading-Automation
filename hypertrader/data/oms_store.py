@@ -54,7 +54,8 @@ class OMSStore:
                 qty REAL NOT NULL,
                 price REAL NOT NULL,
                 fee REAL DEFAULT 0,
-                ts REAL NOT NULL
+                ts REAL NOT NULL,
+                UNIQUE(order_id, ts, qty, price, fee)
             )
             """
         )
@@ -113,7 +114,7 @@ class OMSStore:
         self, order_id: str, qty: float, price: float, fee: float, ts: float
     ) -> None:
         await self._enqueue(
-            "INSERT INTO fills(order_id, qty, price, fee, ts) VALUES (?,?,?,?,?)",
+            "INSERT OR IGNORE INTO fills(order_id, qty, price, fee, ts) VALUES (?,?,?,?,?)",
             (order_id, qty, price, fee, ts),
         )
 
