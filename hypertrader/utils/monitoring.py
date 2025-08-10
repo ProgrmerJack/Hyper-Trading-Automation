@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Iterable
 
 import numpy as np
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 from sklearn.ensemble import IsolationForest
 
 # Prometheus gauges for core risk metrics
@@ -13,6 +13,11 @@ equity_gauge = Gauge("account_equity", "Current account equity")
 var_gauge = Gauge("portfolio_var", "Estimated value-at-risk")
 ws_ping_counter = Counter("ws_pings_total", "WebSocket pings sent")
 ws_pong_counter = Counter("ws_pongs_total", "WebSocket pongs received")
+ws_ping_rtt_histogram = Histogram(
+    "ws_ping_rtt_seconds",
+    "WebSocket ping-pong round trip time",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+)
 listenkey_refresh_counter = Counter(
     "listenkey_refresh_total", "Binance listenKey refreshes"
 )
@@ -68,6 +73,7 @@ __all__ = [
     "var_gauge",
     "ws_ping_counter",
     "ws_pong_counter",
+    "ws_ping_rtt_histogram",
     "listenkey_refresh_counter",
     "ws_reconnect_counter",
 ]
