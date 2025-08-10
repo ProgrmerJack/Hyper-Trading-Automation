@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+import random
 from dataclasses import dataclass
 from typing import Optional, List
 
@@ -15,6 +17,7 @@ from ..utils.monitoring import (
     listenkey_refresh_counter,
     ws_ping_counter,
     ws_pong_counter,
+    ws_ping_rtt_histogram,
     ws_reconnect_counter,
 )
 
@@ -226,24 +229,40 @@ class PrivateWebSocketFeed:
 
     async def run(self) -> None:
         backoff = 1
+        missed = 0
         while True:
             if self._ws is None:
                 try:
                     await self._connect()
                     backoff = 1
                 except Exception:
-                    await asyncio.sleep(backoff)
+                    await asyncio.sleep(backoff + random.uniform(0, backoff))
                     backoff = min(backoff * 2, 30)
                     continue
             try:
+                start = time.perf_counter()
                 ping = self._ws.ping()
                 ws_ping_counter.inc()
                 await asyncio.wait_for(ping, timeout=self.heartbeat)
                 ws_pong_counter.inc()
+                ws_ping_rtt_histogram.observe(time.perf_counter() - start)
                 raw = await asyncio.wait_for(self._ws.recv(), timeout=self.heartbeat)
+                missed = 0
                 msg = json.loads(raw)
                 if self.exchange == "binance":
                     await self._handle_binance(msg)
+            except asyncio.TimeoutError:
+                missed += 1
+                if missed < 3:
+                    continue
+                try:
+                    if self._ws is not None:
+                        await self._ws.close()
+                finally:
+                    self._ws = None
+                await cancel_all()
+                await asyncio.sleep(backoff + random.uniform(0, backoff))
+                backoff = min(backoff * 2, 30)
             except Exception:
                 try:
                     if self._ws is not None:
@@ -251,7 +270,7 @@ class PrivateWebSocketFeed:
                 finally:
                     self._ws = None
                 await cancel_all()
-                await asyncio.sleep(backoff)
+                await asyncio.sleep(backoff + random.uniform(0, backoff))
                 backoff = min(backoff * 2, 30)
 
     async def close(self) -> None:
