@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 import contextlib
-import requests
+import httpx
 import websockets
 
 from ..data.oms_store import OMSStore
@@ -31,7 +31,7 @@ class OrderEvent:
     qty: float
     price: float
     fee: float
-    ts: int           # epoch ms
+    ts: float         # epoch seconds
 
 
 class PrivateWebSocketFeed:
@@ -62,6 +62,8 @@ class PrivateWebSocketFeed:
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
         self._listen_key: Optional[str] = None
         self._keepalive_task: Optional[asyncio.Task] = None
+        transport = httpx.AsyncHTTPTransport(retries=3)
+        self._http = httpx.AsyncClient(timeout=5.0, transport=transport)
 
     async def _binance_listen_key(self) -> str:
         if self._listen_key:
@@ -70,9 +72,7 @@ class PrivateWebSocketFeed:
             url = "https://fapi.binance.com/fapi/v1/listenKey"
         else:
             url = "https://api.binance.com/api/v3/userDataStream"
-        resp = await asyncio.to_thread(
-            requests.post, url, headers={"X-MBX-APIKEY": self.api_key}
-        )
+        resp = await self._http.post(url, headers={"X-MBX-APIKEY": self.api_key})
         resp.raise_for_status()
         self._listen_key = resp.json()["listenKey"]
         return self._listen_key
@@ -85,8 +85,7 @@ class PrivateWebSocketFeed:
             else:
                 url = "https://api.binance.com/api/v3/userDataStream"
             try:
-                await asyncio.to_thread(
-                    requests.put,
+                await self._http.put(
                     url,
                     params={"listenKey": self._listen_key},
                     headers={"X-MBX-APIKEY": self.api_key},
@@ -104,8 +103,7 @@ class PrivateWebSocketFeed:
                 else:
                     url = "https://api.binance.com/api/v3/userDataStream"
                 try:
-                    await asyncio.to_thread(
-                        requests.delete,
+                    await self._http.delete(
                         url,
                         params={"listenKey": self._listen_key},
                         headers={"X-MBX-APIKEY": self.api_key},
@@ -145,7 +143,7 @@ class PrivateWebSocketFeed:
                 qty=0.0,
                 price=0.0,
                 fee=0.0,
-                ts=int(msg.get("E", 0)),
+                ts=float(msg.get("E", 0)) / 1000,
             )
         ]
         if msg.get("x") == "TRADE" and float(msg.get("l", 0)) > 0:
@@ -161,7 +159,7 @@ class PrivateWebSocketFeed:
                     qty=float(msg.get("l", 0.0)),
                     price=float(msg.get("L", 0.0)),
                     fee=float(msg.get("n", 0.0)),
-                    ts=int(msg.get("T", 0)),
+                    ts=float(msg.get("T", 0)) / 1000,
                 )
             )
         return evs
@@ -171,7 +169,7 @@ class PrivateWebSocketFeed:
             return []
         o = event.get("o", {})
         status = o.get("X")
-        order_id = str(o.get("i"))
+        order_id = str(o.get("i") or event.get("i"))
         client_id = o.get("c")
         side = o.get("S")
         symbol = o.get("s")
@@ -187,7 +185,7 @@ class PrivateWebSocketFeed:
                 qty=0.0,
                 price=0.0,
                 fee=0.0,
-                ts=int(event.get("E", 0)),
+                ts=float(event.get("E", 0)) / 1000,
             )
         ]
         if float(o.get("l", 0)) > 0:
@@ -203,7 +201,7 @@ class PrivateWebSocketFeed:
                     qty=float(o.get("l", 0.0)),
                     price=float(o.get("L", 0.0)),
                     fee=float(o.get("n", 0.0)),
-                    ts=int(o.get("T", 0)),
+                    ts=float(o.get("T", 0)) / 1000,
                 )
             )
         return evs
@@ -218,12 +216,12 @@ class PrivateWebSocketFeed:
             await self.store.update_order_status(ev.order_id, ev.status)
             if ev.qty or ev.fee:
                 await self.store.record_fill(
-                    ev.order_id, ev.qty, ev.price, ev.fee, ev.ts / 1000
+                    ev.order_id, ev.qty, ev.price, ev.fee, ev.ts
                 )
             if self.market == "futures" and ev.qty:
                 sign = 1 if ev.side == "BUY" else -1
                 await self.store.upsert_position(
-                    ev.symbol, sign * ev.qty, ev.price, None, ev.ts / 1000
+                    ev.symbol, sign * ev.qty, ev.price, None, ev.ts
                 )
 
     async def run(self) -> None:
@@ -265,3 +263,4 @@ class PrivateWebSocketFeed:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._keepalive_task
             self._keepalive_task = None
+        await self._http.aclose()
