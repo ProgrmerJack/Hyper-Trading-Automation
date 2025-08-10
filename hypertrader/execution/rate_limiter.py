@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
+
+from ..utils.monitoring import rate_limit_throttle_counter
 
 
 class TokenBucket:
@@ -36,6 +39,8 @@ class TokenBucket:
                     self.tokens -= tokens
                     return
                 wait = (tokens - self.tokens) / self.rate
+                rate_limit_throttle_counter.inc()
+                logging.info("rate limiter throttling for %.2fs", wait)
             await asyncio.sleep(wait)
 
 

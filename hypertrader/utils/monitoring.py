@@ -22,6 +22,9 @@ listenkey_refresh_counter = Counter(
     "listenkey_refresh_total", "Binance listenKey refreshes"
 )
 ws_reconnect_counter = Counter("ws_reconnect_total", "WebSocket reconnects")
+rate_limit_throttle_counter = Counter(
+    "rate_limit_throttles_total", "Rate limiter throttles"
+)
 
 
 def start_metrics_server(port: int = 8000) -> None:
@@ -76,4 +79,5 @@ __all__ = [
     "ws_ping_rtt_histogram",
     "listenkey_refresh_counter",
     "ws_reconnect_counter",
+    "rate_limit_throttle_counter",
 ]
