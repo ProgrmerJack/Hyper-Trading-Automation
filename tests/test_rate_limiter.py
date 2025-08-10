@@ -24,3 +24,4 @@ async def test_token_bucket_throttles_burst():
         await bucket.acquire()
     elapsed = time.perf_counter() - start
     assert elapsed >= 1.0
+
