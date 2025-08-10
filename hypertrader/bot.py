@@ -10,6 +10,7 @@ from typing import Any
 from collections.abc import Sequence
 
 import pandas as pd
+import numpy as np
 from dotenv import load_dotenv
 
 from .config import load_config
@@ -73,6 +74,7 @@ async def _run(
     max_exposure: float = 3.0,
     live: bool = False,
     data: pd.DataFrame | None = None,
+    store: OMSStore | None = None,
 ) -> None:
     """Run one iteration of the trading pipeline.
 
@@ -132,10 +134,19 @@ async def _run(
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
-    store = OMSStore(state_file.with_suffix(".db"))
+    latency_slo = False
+    p95_latency = 0.0
+    if len(latencies) >= 20:
+        p95_latency = float(np.percentile(latencies, 95))
+        if p95_latency > 2.0:
+            latency_slo = True
+    if store is None:
+        store = OMSStore(state_file.with_suffix(".db"))
+    else:
+        store._external = True
     open_orders: dict[str, Any] = {
         oid: {"symbol": sym, "side": side, "volume": vol}
-        for oid, sym, side, vol, _ in store.fetch_open_orders()
+        for oid, sym, side, vol, _ in await store.fetch_open_orders()
     }
 
     risk_cfg = cfg.get("risk", {}) if config_path else {}
@@ -153,8 +164,7 @@ async def _run(
 
     ccxt_symbol = symbol.replace('-', '/')
 
-    # reconcile open orders and positions with the exchange
-    if live and exchange:
+    async def reconcile() -> None:
         try:
             remote_orders = await ex.fetch_open_orders(ccxt_symbol)
         except Exception:
@@ -162,12 +172,12 @@ async def _run(
         remote_ids = {o.get("clientOrderId") or o.get("id") for o in remote_orders}
         for oid in list(open_orders):
             if oid not in remote_ids:
-                store.remove_order(oid)
+                await store.remove_order(oid)
                 del open_orders[oid]
         for o in remote_orders:
             cid = o.get("clientOrderId") or o.get("id")
             if cid and cid not in open_orders:
-                store.record_order(
+                await store.record_order(
                     cid,
                     o.get("clientOrderId"),
                     o.get("symbol", ccxt_symbol),
@@ -192,7 +202,7 @@ async def _run(
                     or 0.0
                 )
                 if qty:
-                    store.upsert_position(
+                    await store.upsert_position(
                         p.get("symbol", ccxt_symbol),
                         qty,
                         float(p.get("entryPrice") or 0.0),
@@ -202,12 +212,19 @@ async def _run(
         except Exception:
             pass
 
+    # reconcile open orders and positions with the exchange
+    if live and exchange:
+        await reconcile()
+        if time.time() - state.get("last_reconcile", 0) > 300:
+            await reconcile()
+            state["last_reconcile"] = time.time()
+
     # cancel any lingering open orders from previous session
     if live and exchange and open_orders:
         for oid, info in list(open_orders.items()):
             try:
                 await cancel_order(info["symbol"], oid)
-                store.remove_order(oid)
+                await store.remove_order(oid)
                 del open_orders[oid]
             except Exception as exc:
                 log_json(logger, "cancel_failed", order_id=oid, error=str(exc))
@@ -365,6 +382,16 @@ async def _run(
     }
     position_value = volume * price
     edge = abs((take_profit - price) / price) if take_profit else 0.0
+    if latency_slo and live and exchange:
+        log_json(logger, "latency_slo_triggered", p95=p95_latency)
+        for oid, info in list(open_orders.items()):
+            try:
+                await cancel_order(info["symbol"], oid)
+                await store.update_order_status(oid, "CANCELED")
+                del open_orders[oid]
+            except Exception:
+                pass
+        sig.action = "HOLD"
     if live and exchange and sig.action != "HOLD" and volume > 0:
         if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
             client_id = uuid.uuid4().hex
@@ -377,7 +404,7 @@ async def _run(
                     "side": sig.action,
                     "volume": volume,
                 }
-                store.record_order(
+                await store.record_order(
                     client_id,
                     client_id,
                     ccxt_symbol,
@@ -424,7 +451,8 @@ async def _run(
     state["equity"] = account_balance
     state["latencies"] = latencies
     state_file.write_text(json.dumps(state))
-    store.close()
+    if store and not getattr(store, "_external", False):
+        await store.close()
 
 
 def run(
