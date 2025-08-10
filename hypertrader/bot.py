@@ -8,6 +8,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 from collections.abc import Sequence
+from collections import deque
 
 import pandas as pd
 import numpy as np
@@ -130,20 +131,25 @@ async def _run(
             state = json.loads(state_file.read_text())
         except json.JSONDecodeError:
             state = {}
-    latencies: list[float] = state.get("latencies", [])  # historical latencies for anomaly detection
+    latencies = deque(state.get("latencies", []), maxlen=120)
+    latency_breach = state.get("latency_breach", 0)
     peak_equity = state.get("peak_equity", account_balance)
     drawdown = (peak_equity - account_balance) / peak_equity if peak_equity > 0 else 0.0
     allocation_factor = drawdown_throttle(account_balance, peak_equity)
-    latency_slo = False
     p95_latency = 0.0
     if len(latencies) >= 20:
-        p95_latency = float(np.percentile(latencies, 95))
+        p95_latency = float(np.percentile(list(latencies), 95))
         if p95_latency > 2.0:
-            latency_slo = True
+            latency_breach += 1
+        else:
+            latency_breach = 0
+    latency_soft = latency_breach > 0
+    latency_hard = latency_breach >= 3
     if store is None:
         store = OMSStore(state_file.with_suffix(".db"))
+        owns_store = True
     else:
-        store._external = True
+        owns_store = False
     open_orders: dict[str, Any] = {
         oid: {"symbol": sym, "side": side, "volume": vol}
         for oid, sym, side, vol, _ in await store.fetch_open_orders()
@@ -382,8 +388,8 @@ async def _run(
     }
     position_value = volume * price
     edge = abs((take_profit - price) / price) if take_profit else 0.0
-    if latency_slo and live and exchange:
-        log_json(logger, "latency_slo_triggered", p95=p95_latency)
+    if latency_hard and live and exchange:
+        log_json(logger, "latency_slo_triggered", stage="hard", p95=p95_latency)
         for oid, info in list(open_orders.items()):
             try:
                 await cancel_order(info["symbol"], oid)
@@ -391,6 +397,9 @@ async def _run(
                 del open_orders[oid]
             except Exception:
                 pass
+        sig.action = "HOLD"
+    elif latency_soft and live:
+        log_json(logger, "latency_slo_triggered", stage="soft", p95=p95_latency)
         sig.action = "HOLD"
     if live and exchange and sig.action != "HOLD" and volume > 0:
         if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
@@ -428,7 +437,6 @@ async def _run(
     monitor_var(var)
 
     latencies.append(latency)
-    latencies = latencies[-50:]
     if len(latencies) > 5:
         labels = detect_anomalies(latencies)
         if labels[-1] == -1:
@@ -449,9 +457,10 @@ async def _run(
 
     state["peak_equity"] = max(peak_equity, account_balance)
     state["equity"] = account_balance
-    state["latencies"] = latencies
+    state["latencies"] = list(latencies)
+    state["latency_breach"] = latency_breach
     state_file.write_text(json.dumps(state))
-    if store and not getattr(store, "_external", False):
+    if store and owns_store:
         await store.close()
 
 

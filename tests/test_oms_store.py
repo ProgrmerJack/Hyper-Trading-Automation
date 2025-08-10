@@ -22,3 +22,29 @@ async def test_oms_store_roundtrip(tmp_path) -> None:
     pos = list(await store.fetch_positions())
     assert pos[0][0] == "BTC/USDT"
     await store.close()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_writes(tmp_path) -> None:
+    db = tmp_path / "orders.db"
+    store = OMSStore(db)
+    now = time.time()
+
+    async def writer(i: int) -> None:
+        await store.record_order(str(i), f"c{i}", "BTC/USDT", "buy", 1.0, 100.0, "open", now)
+
+    await asyncio.gather(*(writer(i) for i in range(10)))
+    rows = list(await store.fetch_open_orders())
+    assert len(rows) == 10
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_store_close_drains_queue(tmp_path) -> None:
+    db = tmp_path / "orders.db"
+    store = OMSStore(db)
+    now = time.time()
+    await store.record_order("1", "c1", "BTC/USDT", "buy", 1.0, 100.0, "open", now)
+    await store.close()
+    assert store._queue.empty()
+    assert store._writer.done()
