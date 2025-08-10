@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, List
 
 import contextlib
 import requests
@@ -16,6 +17,21 @@ from ..utils.monitoring import (
     ws_pong_counter,
     ws_reconnect_counter,
 )
+
+
+@dataclass
+class OrderEvent:
+    venue: str
+    market_type: str  # 'spot' | 'futures'
+    symbol: str
+    order_id: str
+    client_id: str | None
+    status: str       # 'NEW'|'PARTIALLY_FILLED'|'FILLED'|'CANCELED'|'REJECTED'
+    side: str         # 'BUY'|'SELL'
+    qty: float
+    price: float
+    fee: float
+    ts: int           # epoch ms
 
 
 class PrivateWebSocketFeed:
@@ -109,31 +125,106 @@ class PrivateWebSocketFeed:
         else:
             raise ValueError("unsupported exchange for private stream")
 
+    def _map_binance_spot(self, msg: dict) -> List[OrderEvent]:
+        if msg.get("e") != "executionReport":
+            return []
+        status = msg.get("X")
+        order_id = str(msg.get("i"))
+        client_id = msg.get("c")
+        side = msg.get("S")
+        symbol = msg.get("s")
+        evs: List[OrderEvent] = [
+            OrderEvent(
+                venue="binance",
+                market_type="spot",
+                symbol=symbol,
+                order_id=order_id,
+                client_id=client_id,
+                status=status,
+                side=side,
+                qty=0.0,
+                price=0.0,
+                fee=0.0,
+                ts=int(msg.get("E", 0)),
+            )
+        ]
+        if msg.get("x") == "TRADE" and float(msg.get("l", 0)) > 0:
+            evs.append(
+                OrderEvent(
+                    venue="binance",
+                    market_type="spot",
+                    symbol=symbol,
+                    order_id=order_id,
+                    client_id=client_id,
+                    status="FILLED" if status == "FILLED" else "PARTIALLY_FILLED",
+                    side=side,
+                    qty=float(msg.get("l", 0.0)),
+                    price=float(msg.get("L", 0.0)),
+                    fee=float(msg.get("n", 0.0)),
+                    ts=int(msg.get("T", 0)),
+                )
+            )
+        return evs
+
+    def _map_binance_futures(self, event: dict) -> List[OrderEvent]:
+        if event.get("e") != "ORDER_TRADE_UPDATE":
+            return []
+        o = event.get("o", {})
+        status = o.get("X")
+        order_id = str(o.get("i"))
+        client_id = o.get("c")
+        side = o.get("S")
+        symbol = o.get("s")
+        evs: List[OrderEvent] = [
+            OrderEvent(
+                venue="binance",
+                market_type="futures",
+                symbol=symbol,
+                order_id=order_id,
+                client_id=client_id,
+                status=status,
+                side=side,
+                qty=0.0,
+                price=0.0,
+                fee=0.0,
+                ts=int(event.get("E", 0)),
+            )
+        ]
+        if float(o.get("l", 0)) > 0:
+            evs.append(
+                OrderEvent(
+                    venue="binance",
+                    market_type="futures",
+                    symbol=symbol,
+                    order_id=order_id,
+                    client_id=client_id,
+                    status="FILLED" if status == "FILLED" else "PARTIALLY_FILLED",
+                    side=side,
+                    qty=float(o.get("l", 0.0)),
+                    price=float(o.get("L", 0.0)),
+                    fee=float(o.get("n", 0.0)),
+                    ts=int(o.get("T", 0)),
+                )
+            )
+        return evs
+
     async def _handle_binance(self, msg: dict) -> None:
-        event = msg.get("e")
-        if event == "executionReport":
-            order_id = msg.get("c") or str(msg.get("i"))
-            status = msg.get("X")
-            if order_id and status:
-                await self.store.update_order_status(order_id, status)
-            if msg.get("x") == "TRADE":
-                qty = float(msg.get("l", 0))
-                price = float(msg.get("L", 0))
-                fee = float(msg.get("n", 0))
-                ts = msg.get("T", 0) / 1000
-                await self.store.record_fill(order_id, qty, price, fee, ts)
-        elif event == "ORDER_TRADE_UPDATE":
-            data = msg.get("o", {})
-            order_id = data.get("c") or str(data.get("i"))
-            status = data.get("X")
-            if order_id and status:
-                await self.store.update_order_status(order_id, status)
-            if data.get("x") == "TRADE":
-                qty = float(data.get("l", 0))
-                price = float(data.get("L", 0))
-                fee = float(data.get("n", 0))
-                ts = msg.get("T", 0) / 1000
-                await self.store.record_fill(order_id, qty, price, fee, ts)
+        evs: List[OrderEvent] = []
+        if self.market == "spot":
+            evs = self._map_binance_spot(msg)
+        elif self.market == "futures":
+            evs = self._map_binance_futures(msg)
+        for ev in evs:
+            await self.store.update_order_status(ev.order_id, ev.status)
+            if ev.qty or ev.fee:
+                await self.store.record_fill(
+                    ev.order_id, ev.qty, ev.price, ev.fee, ev.ts / 1000
+                )
+            if self.market == "futures" and ev.qty:
+                sign = 1 if ev.side == "BUY" else -1
+                await self.store.upsert_position(
+                    ev.symbol, sign * ev.qty, ev.price, None, ev.ts / 1000
+                )
 
     async def run(self) -> None:
         backoff = 1
