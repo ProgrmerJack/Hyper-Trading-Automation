@@ -1,15 +1,35 @@
+import asyncio
 import sqlite3
 from pathlib import Path
 from typing import Iterable, Tuple
 
 
 class OMSStore:
-    """Tiny SQLite-backed store for orders, fills and positions."""
+    """Tiny SQLite-backed store for orders, fills and positions.
+
+    The store serializes writes through an ``asyncio.Queue`` to avoid the
+    ``database is locked`` foot-gun under concurrent access.  Reads are executed
+    in a thread via :func:`asyncio.to_thread` to keep the event loop responsive.
+    """
 
     def __init__(self, path: str | Path = "oms.db") -> None:
         self.path = Path(path)
-        self.conn = sqlite3.connect(self.path)
+        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         self._init_db()
+        self._queue: asyncio.Queue[tuple[str | None, tuple]] = asyncio.Queue()
+        self._writer = asyncio.create_task(self._writer_loop())
+
+    async def _writer_loop(self) -> None:
+        while True:
+            sql, params = await self._queue.get()
+            if sql is None:
+                self._queue.task_done()
+                break
+            await asyncio.to_thread(self.conn.execute, sql, params)
+            await asyncio.to_thread(self.conn.commit)
+            self._queue.task_done()
 
     def _init_db(self) -> None:
         self.conn.execute(
@@ -51,8 +71,12 @@ class OMSStore:
         )
         self.conn.commit()
 
+    async def _enqueue(self, sql: str, params: tuple) -> None:
+        await self._queue.put((sql, params))
+        await self._queue.join()
+
     # order helpers -----------------------------------------------------
-    def record_order(
+    async def record_order(
         self,
         order_id: str,
         client_id: str | None,
@@ -63,49 +87,55 @@ class OMSStore:
         status: str,
         ts: float,
     ) -> None:
-        self.conn.execute(
+        await self._enqueue(
             "INSERT OR REPLACE INTO orders(id, client_id, symbol, side, qty, price, status, ts) VALUES (?,?,?,?,?,?,?,?)",
             (order_id, client_id, symbol, side, qty, price, status, ts),
         )
-        self.conn.commit()
 
-    def update_order_status(self, order_id: str, status: str) -> None:
-        self.conn.execute("UPDATE orders SET status=? WHERE id=?", (status, order_id))
-        self.conn.commit()
-
-    def remove_order(self, order_id: str) -> None:
-        self.conn.execute("DELETE FROM orders WHERE id=?", (order_id,))
-        self.conn.commit()
-
-    def fetch_open_orders(self) -> Iterable[Tuple[str, str, str, float, float]]:
-        cur = self.conn.execute(
-            "SELECT id, symbol, side, qty, ts FROM orders WHERE status NOT IN ('FILLED','CANCELED')"
+    async def update_order_status(self, order_id: str, status: str) -> None:
+        await self._enqueue(
+            "UPDATE orders SET status=? WHERE id=?", (status, order_id)
         )
-        return cur.fetchall()
+
+    async def remove_order(self, order_id: str) -> None:
+        await self._enqueue("DELETE FROM orders WHERE id=?", (order_id,))
+
+    async def fetch_open_orders(self) -> Iterable[Tuple[str, str, str, float, float]]:
+        cur = await asyncio.to_thread(
+            self.conn.execute,
+            "SELECT id, symbol, side, qty, ts FROM orders WHERE status NOT IN ('FILLED','CANCELED')",
+        )
+        rows = await asyncio.to_thread(cur.fetchall)
+        return rows
 
     # fills -------------------------------------------------------------
-    def record_fill(self, order_id: str, qty: float, price: float, fee: float, ts: float) -> None:
-        self.conn.execute(
+    async def record_fill(
+        self, order_id: str, qty: float, price: float, fee: float, ts: float
+    ) -> None:
+        await self._enqueue(
             "INSERT INTO fills(order_id, qty, price, fee, ts) VALUES (?,?,?,?,?)",
             (order_id, qty, price, fee, ts),
         )
-        self.conn.commit()
 
     # positions ---------------------------------------------------------
-    def upsert_position(
+    async def upsert_position(
         self, symbol: str, qty: float, entry_px: float | None, liq_px: float | None, ts: float
     ) -> None:
-        self.conn.execute(
+        await self._enqueue(
             "INSERT OR REPLACE INTO positions(symbol, qty, entry_px, liq_px, ts) VALUES (?,?,?,?,?)",
             (symbol, qty, entry_px, liq_px, ts),
         )
-        self.conn.commit()
 
-    def fetch_positions(self) -> Iterable[Tuple[str, float, float | None, float | None, float]]:
-        cur = self.conn.execute(
-            "SELECT symbol, qty, entry_px, liq_px, ts FROM positions"
+    async def fetch_positions(
+        self,
+    ) -> Iterable[Tuple[str, float, float | None, float | None, float]]:
+        cur = await asyncio.to_thread(
+            self.conn.execute, "SELECT symbol, qty, entry_px, liq_px, ts FROM positions"
         )
-        return cur.fetchall()
+        rows = await asyncio.to_thread(cur.fetchall)
+        return rows
 
-    def close(self) -> None:
-        self.conn.close()
+    async def close(self) -> None:
+        await self._queue.put((None, ()))
+        await self._writer
+        await asyncio.to_thread(self.conn.close)
