@@ -14,6 +14,8 @@ import websockets
 from ..data.oms_store import OMSStore
 from ..execution.ccxt_executor import cancel_all
 from ..utils.monitoring import (
+    ack_fill_histogram,
+    decision_ack_histogram,
     listenkey_refresh_counter,
     ws_ping_counter,
     ws_pong_counter,
@@ -67,6 +69,7 @@ class PrivateWebSocketFeed:
         self._keepalive_task: Optional[asyncio.Task] = None
         transport = httpx.AsyncHTTPTransport(retries=3)
         self._http = httpx.AsyncClient(timeout=5.0, transport=transport)
+        self._ack_times: dict[str, float] = {}
 
     async def _binance_listen_key(self) -> str:
         if self._listen_key:
@@ -216,6 +219,14 @@ class PrivateWebSocketFeed:
         elif self.market == "futures":
             evs = self._map_binance_futures(msg)
         for ev in evs:
+            order_ts = await self.store.fetch_order_ts(ev.order_id)
+            if order_ts is not None:
+                if ev.qty == 0:
+                    decision_ack_histogram.observe(ev.ts - order_ts)
+                    self._ack_times[ev.order_id] = ev.ts
+                else:
+                    ack_ts = self._ack_times.get(ev.order_id, order_ts)
+                    ack_fill_histogram.observe(ev.ts - ack_ts)
             await self.store.update_order_status(ev.order_id, ev.status)
             if ev.qty or ev.fee:
                 await self.store.record_fill(
@@ -226,6 +237,8 @@ class PrivateWebSocketFeed:
                 await self.store.upsert_position(
                     ev.symbol, sign * ev.qty, ev.price, None, ev.ts
                 )
+            if ev.status in ("FILLED", "CANCELED"):
+                self._ack_times.pop(ev.order_id, None)
 
     async def run(self) -> None:
         backoff = 1

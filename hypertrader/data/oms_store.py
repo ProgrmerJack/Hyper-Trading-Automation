@@ -109,6 +109,13 @@ class OMSStore:
         rows = await asyncio.to_thread(cur.fetchall)
         return rows
 
+    async def fetch_order_ts(self, order_id: str) -> float | None:
+        cur = await asyncio.to_thread(
+            self.conn.execute, "SELECT ts FROM orders WHERE id=?", (order_id,)
+        )
+        row = await asyncio.to_thread(cur.fetchone)
+        return row[0] if row else None
+
     # fills -------------------------------------------------------------
     async def record_fill(
         self, order_id: str, qty: float, price: float, fee: float, ts: float
