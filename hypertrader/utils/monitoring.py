@@ -26,6 +26,10 @@ rate_limit_throttle_counter = Counter(
     "rate_limit_throttles_total", "Rate limiter throttles"
 )
 
+# Latency histograms for order lifecycle
+decision_ack_histogram = Histogram("decision_to_ack_seconds", "Time between trade decision and exchange acknowledgment", buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0))
+ack_fill_histogram = Histogram("ack_to_fill_seconds", "Time between order acknowledgment and fill", buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0))
+
 
 def start_metrics_server(port: int = 8000) -> None:
     """Start a Prometheus metrics HTTP server."""
@@ -80,4 +84,6 @@ __all__ = [
     "listenkey_refresh_counter",
     "ws_reconnect_counter",
     "rate_limit_throttle_counter",
+    "decision_ack_histogram",
+    "ack_fill_histogram",
 ]
