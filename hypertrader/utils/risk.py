@@ -1,4 +1,11 @@
-"""Risk management utilities."""
+"""Risk management utilities.
+
+This module provides comprehensive risk management functions for
+position sizing, leverage selection, trailing stops and mechanisms
+to throttle trading based on drawdowns or volatility. These
+functions are vital for controlling exposure in the face of
+uncertainty and preventing catastrophic losses.
+"""
 from __future__ import annotations
 
 from importlib import import_module

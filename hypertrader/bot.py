@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 from collections.abc import Sequence
 from collections import deque
+from dataclasses import dataclass, field
 
 import pandas as pd
 import numpy as np
@@ -59,6 +60,108 @@ from .execution.ccxt_executor import place_order, cancel_order, ex
 from .risk.manager import RiskManager, RiskParams
 
 load_dotenv()
+
+
+@dataclass
+class TradingBot:
+    """High‑level trading bot orchestrating data, strategies and execution.
+
+    Parameters
+    ----------
+    connector : ExchangeConnector
+        Interface to market data and order execution (live or simulation).
+    strategy : object
+        Strategy or meta strategy instance that produces orders.
+    symbol : str
+        Trading pair to operate on.  For multi‑symbol trading,
+        instantiate separate bots or extend the class to handle
+        multiple symbols.
+    base_order_size : float, optional
+        Base quantity used when strategies do not specify sizes.
+    max_drawdown : float, optional
+        Maximum tolerated drawdown expressed as fraction of equity
+        (e.g., 0.1 for 10%).  Used by the drawdown throttle.
+    stop_loss_pct : float, optional
+        Percentage for trailing stop on open positions.  Default is
+        0.02 (2%).
+    """
+
+    connector: Any
+    strategy: Any
+    symbol: str
+    base_order_size: float = 1.0
+    max_drawdown: float = 0.1
+    stop_loss_pct: float = 0.02
+    # internal state
+    equity: float = 0.0
+    peak_equity: float = 0.0
+    open_position: float = 0.0
+    last_price: float = 0.0
+    order_history: list[tuple[str, float, float, datetime]] = field(default_factory=list, init=False)
+
+    def update_equity(self, price: float) -> None:
+        """Update equity and peak equity based on current price and position."""
+        self.last_price = price
+        self.equity = self.open_position * price
+        self.peak_equity = max(self.peak_equity, self.equity)
+
+    def on_new_tick(self, price: float, trades: list[dict]) -> None:
+        """Process a new market tick.
+
+        Parameters
+        ----------
+        price : float
+            Latest trade or mid price of the instrument.
+        trades : list of dict
+            Recent trades used for toxicity and regime analysis.
+        """
+        from .utils.features import flow_toxicity, detect_entropy_regime
+        from .utils.rl_utils import dynamic_order_size
+        
+        # Update internal equity
+        self.update_equity(price)
+        # Compute microstructure signals for RL sizing
+        toxicity = flow_toxicity(trades, window=min(len(trades), 100))
+        # Determine regime from price directions (use last 20 order history directions)
+        directions = [1 if self.order_history[i][1] > 0 else 0 for i in range(max(0, len(self.order_history) - 20), len(self.order_history))] if self.order_history else []
+        regime = detect_entropy_regime(directions) if directions else "normal"
+        # Generate orders from strategy
+        if hasattr(self.strategy, "update"):
+            orders = self.strategy.update(price)  # pass price only to simple strategies
+        else:
+            orders = []
+        # Risk checks: trailing stop and drawdown
+        # If we have an open position, apply trailing stop
+        stop_price = trailing_stop(self.open_position, self.last_price, self.stop_loss_pct)
+        if self.open_position > 0 and price < stop_price:
+            # Sell to close long position
+            orders.append(("sell", price, self.open_position))
+            self.open_position = 0.0
+        elif self.open_position < 0 and price > stop_price:
+            # Buy to close short position
+            orders.append(("buy", price, -self.open_position))
+            self.open_position = 0.0
+        # Drawdown throttle: skip orders if equity falls too far from peak
+        if drawdown_throttle(self.equity, self.peak_equity, self.max_drawdown):
+            orders = []
+        # Process orders
+        for side, order_price, qty in orders:
+            # Determine dynamic size based on RL sizing
+            size = dynamic_order_size(0.6 if side == "buy" else 0.4, toxicity, regime, self.base_order_size)
+            # If size or qty is zero, skip
+            if size <= 0.0 or qty <= 0.0:
+                continue
+            # Use price if provided
+            exec_price = order_price or price
+            # Send order to connector
+            self.connector.place_order(self.symbol, side, size, exec_price)
+            # Update position
+            if side == "buy":
+                self.open_position += size
+            else:
+                self.open_position -= size
+            # Record order
+            self.order_history.append((side, size, exec_price, datetime.now(timezone.utc)))
 
 async def _run(
     symbol: str | Sequence[str],

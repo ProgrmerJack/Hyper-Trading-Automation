@@ -10,6 +10,12 @@ __all__ = [
     "train_model",
     "ml_signal",
     "cross_validate_model",
+    "connectors",
+    "indicators",
+    "strategies",
+    "backtester",
+    "utils",
+    "bot",
 ]
 
 

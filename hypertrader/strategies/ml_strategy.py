@@ -1,9 +1,18 @@
-"""Simple machine learning-based strategy utilities."""
+"""Machine learning-based strategy utilities and implementations.
+
+This module provides both utility functions for training sklearn models
+and a class-based strategy implementation that uses machine learning
+to predict short-term price movements. It includes feature extraction,
+model training, cross-validation, and real-time strategy execution.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
+from typing import Callable, Iterable, List, Tuple
 
+import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
@@ -26,6 +35,10 @@ from ..utils.features import (
 )
 
 from ..utils.macro import compute_risk_tolerance
+
+
+def _sigmoid(x: float) -> float:
+    return 1.0 / (1.0 + math.exp(-x))
 
 
 
@@ -119,3 +132,90 @@ def ml_signal(model: LogisticRegression, df: pd.DataFrame) -> MLSignal:
     else:
         action = "HOLD"
     return MLSignal(action=action, probability=prob)
+
+
+@dataclass
+class MLStrategy:
+    """Machine learning-based strategy using logistic regression.
+
+    Parameters
+    ----------
+    symbol : str
+        Instrument to trade.
+    window : int
+        Number of past observations used to compute features.
+    buy_threshold : float
+        Probability above which to trigger a buy.
+    sell_threshold : float
+        Probability below which to trigger a sell.
+    base_order_size : float
+        Nominal order size adjusted by dynamic sizing.
+    weights : tuple of float, optional
+        Coefficients for logistic regression (momentum, toxicity, bias).
+    """
+
+    symbol: str
+    window: int = 50
+    buy_threshold: float = 0.55
+    sell_threshold: float = 0.45
+    base_order_size: float = 1.0
+    weights: Tuple[float, float, float] = (10.0, -5.0, 0.0)
+    # stateful series
+    prices: List[float] = field(default_factory=list, init=False)
+    trades: List[dict] = field(default_factory=list, init=False)
+
+    def predict_prob_up(self, current_price: float, toxicity: float) -> float:
+        """Compute probability of upward move using logistic regression.
+
+        Uses price momentum and order flow toxicity as features.
+        """
+        from ..indicators.technical import sma
+        
+        # Compute momentum
+        if len(self.prices) < 2:
+            momentum = 0.0
+        else:
+            avg = sma(self.prices, self.window)
+            momentum = current_price - avg
+        w1, w2, b = self.weights
+        z = w1 * momentum + w2 * toxicity + b
+        return _sigmoid(z)
+
+    def update(self, current_price: float, recent_trades: Iterable[dict]) -> List[Tuple[str, float, float]]:
+        """Update strategy with new price and trades, return orders.
+
+        Parameters
+        ----------
+        current_price : float
+            Latest trade or mid price.
+        recent_trades : iterable of dict
+            Recent trade data for toxicity computation.
+
+        Returns
+        -------
+        list of tuple
+            Orders in format (side, price, quantity).
+        """
+        from ..indicators.microstructure import flow_toxicity, detect_entropy_regime
+        from ..utils.rl_utils import dynamic_order_size
+        
+        self.prices.append(current_price)
+        # compute toxicity
+        tox = flow_toxicity(list(recent_trades), window=min(len(recent_trades), 100))
+        # compute probability
+        prob_up = self.predict_prob_up(current_price, tox)
+        # Determine regime from recent price changes
+        deltas = []
+        if len(self.prices) > 1:
+            for i in range(max(0, len(self.prices) - 20), len(self.prices) - 1):
+                direction = 1 if self.prices[i + 1] > self.prices[i] else 0
+                deltas.append(direction)
+        regime = detect_entropy_regime(deltas) if deltas else "normal"
+        # Determine size based on RL dynamic sizing
+        size = dynamic_order_size(prob_up, tox, regime, self.base_order_size, max_multiplier=2.0)
+        orders: List[Tuple[str, float, float]] = []
+        if prob_up > self.buy_threshold:
+            orders.append(("buy", current_price, size))
+        elif prob_up < self.sell_threshold:
+            orders.append(("sell", current_price, size))
+        return orders
