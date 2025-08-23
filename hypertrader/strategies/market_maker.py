@@ -103,7 +103,7 @@ class MarketMakerStrategy:
             self.sigma = sigma
 
     def compute_reservation_price(self, mid_price: float) -> float:
-        """Calculate the reservation price (indifference price).
+        r"""Calculate the reservation price (indifference price).
 
         The reservation price tilts the mid price toward reducing
         inventory.  It is given by:
@@ -122,7 +122,7 @@ class MarketMakerStrategy:
         return mid_price - (self.inventory * self.sigma ** 2) / self.gamma
 
     def compute_optimal_spread(self) -> float:
-        """Compute the optimal half spread based on model parameters.
+        r"""Compute the optimal half spread based on model parameters.
 
         The optimal spread in Avellaneda–Stoikov is:
 
