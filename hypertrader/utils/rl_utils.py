@@ -29,7 +29,28 @@ from __future__ import annotations
 
 from typing import Literal
 
-from hypertrader.utils.rl_utils import dynamic_order_size as _dynamic_order_size, score_state as _score_state
+
+def score_state(
+    prob_up: float,
+    toxicity: float,
+    regime: Literal["trending", "normal", "chaotic"],
+) -> float:
+    """Return a desirability score in the ``[0, 1]`` range.
+
+    The function favours high probability of an upward move while
+    penalising toxic order flow.  Simple adjustments are applied for
+    market regime: ``trending`` slightly boosts the score, while
+    ``chaotic`` reduces it.  The result is clipped to stay within
+    bounds so callers can safely use it as a weighting factor.
+    """
+
+    score = prob_up - toxicity
+    if regime == "trending":
+        score += 0.1
+    elif regime == "chaotic":
+        score -= 0.1
+    # Clamp to [0, 1]
+    return max(0.0, min(1.0, score))
 
 
 def dynamic_order_size(
@@ -39,17 +60,19 @@ def dynamic_order_size(
     base_size: float,
     max_multiplier: float = 2.0,
 ) -> float:
-    """Wrapper for :func:`hypertrader.utils.rl_utils.dynamic_order_size`.
+    """Scale ``base_size`` based on the current environment.
 
-    See that function for full documentation.
+    The scaling factor is derived from :func:`score_state` and ranges
+    between ``0`` and ``max_multiplier``.  A score of ``0.5`` yields the
+    original ``base_size`` while higher/lower scores proportionally
+    increase or decrease the order size.
     """
-    return _dynamic_order_size(prob_up, toxicity, regime, base_size, max_multiplier)
 
-
-def score_state(prob_up: float, toxicity: float, regime: Literal["trending", "normal", "chaotic"]) -> float:
-    """Wrapper for :func:`hypertrader.utils.rl_utils.score_state`.  See original docs.
-    """
-    return _score_state(prob_up, toxicity, regime)
+    desirability = score_state(prob_up, toxicity, regime)
+    # Map score in [0,1] to [0, max_multiplier]
+    multiplier = 1.0 + (desirability - 0.5) * 2.0 * (max_multiplier - 1.0)
+    multiplier = max(0.0, min(max_multiplier, multiplier))
+    return base_size * multiplier
 
 
 __all__ = [
