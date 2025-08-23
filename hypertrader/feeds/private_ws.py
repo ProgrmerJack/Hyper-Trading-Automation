@@ -10,6 +10,7 @@ from typing import Optional, List
 import contextlib
 import httpx
 import websockets
+from websockets.asyncio.client import ClientConnection
 
 from ..data.oms_store import OMSStore
 from ..execution.ccxt_executor import cancel_all
@@ -64,7 +65,7 @@ class PrivateWebSocketFeed:
         self.heartbeat = heartbeat
         self.market = market.lower()
         self.listen_key_refresh = listen_key_refresh
-        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._ws: Optional[ClientConnection] = None
         self._listen_key: Optional[str] = None
         self._keepalive_task: Optional[asyncio.Task] = None
         transport = httpx.AsyncHTTPTransport(retries=3)
@@ -80,8 +81,9 @@ class PrivateWebSocketFeed:
             url = "https://api.binance.com/api/v3/userDataStream"
         resp = await self._http.post(url, headers={"X-MBX-APIKEY": self.api_key})
         resp.raise_for_status()
-        self._listen_key = resp.json()["listenKey"]
-        return self._listen_key
+        listen_key = resp.json()["listenKey"]
+        self._listen_key = listen_key
+        return listen_key
 
     async def _binance_keepalive(self) -> None:
         while self._ws is not None and self._listen_key:
@@ -132,11 +134,11 @@ class PrivateWebSocketFeed:
     def _map_binance_spot(self, msg: dict) -> List[OrderEvent]:
         if msg.get("e") != "executionReport":
             return []
-        status = msg.get("X")
+        status = str(msg.get("X"))
         order_id = str(msg.get("i"))
         client_id = msg.get("c")
-        side = msg.get("S")
-        symbol = msg.get("s")
+        side = str(msg.get("S"))
+        symbol = str(msg.get("s"))
         evs: List[OrderEvent] = [
             OrderEvent(
                 venue="binance",
@@ -174,11 +176,11 @@ class PrivateWebSocketFeed:
         if event.get("e") != "ORDER_TRADE_UPDATE":
             return []
         o = event.get("o", {})
-        status = o.get("X")
+        status = str(o.get("X"))
         order_id = str(o.get("i") or event.get("i"))
         client_id = o.get("c")
-        side = o.get("S")
-        symbol = o.get("s")
+        side = str(o.get("S"))
+        symbol = str(o.get("s"))
         evs: List[OrderEvent] = [
             OrderEvent(
                 venue="binance",
@@ -253,13 +255,16 @@ class PrivateWebSocketFeed:
                     backoff = min(backoff * 2, 30)
                     continue
             try:
+                ws = self._ws
+                if ws is None:
+                    continue
                 start = time.perf_counter()
-                ping = self._ws.ping()
+                ping = ws.ping()
                 ws_ping_counter.inc()
                 await asyncio.wait_for(ping, timeout=self.heartbeat)
                 ws_pong_counter.inc()
                 ws_ping_rtt_histogram.observe(time.perf_counter() - start)
-                raw = await asyncio.wait_for(self._ws.recv(), timeout=self.heartbeat)
+                raw = await asyncio.wait_for(ws.recv(), timeout=self.heartbeat)
                 missed = 0
                 msg = json.loads(raw)
                 if self.exchange == "binance":
@@ -287,8 +292,9 @@ class PrivateWebSocketFeed:
                 backoff = min(backoff * 2, 30)
 
     async def close(self) -> None:
-        if self._ws is not None:
-            await self._ws.close()
+        ws = self._ws
+        if ws is not None:
+            await ws.close()
             self._ws = None
         if self._keepalive_task is not None:
             self._keepalive_task.cancel()

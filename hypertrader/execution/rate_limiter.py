@@ -26,9 +26,8 @@ class TokenBucket:
         self.updated = time.monotonic()
         self._lock = asyncio.Lock()
 
-    async def acquire(self, tokens: int = 1) -> None:
+    async def acquire(self, tokens: float = 1.0) -> None:
         """Consume ``tokens`` waiting if necessary."""
-        tokens = float(tokens)
         while True:
             async with self._lock:
                 now = time.monotonic()
