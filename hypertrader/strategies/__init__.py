@@ -39,14 +39,17 @@ MetaStrategy
 See each module for further details.
 """
 
-from .market_maker import MarketMakerStrategy
-from .stat_arb import StatisticalArbitrageStrategy
-from .triangular_arb import TriangularArbitrageStrategy
+from .market_maker import MarketMakerStrategy, AvellanedaStoikov
+from .stat_arb import StatisticalArbitrageStrategy, PairStatArb
+from .triangular_arb import TriangularArbitrageStrategy, TriangularArb
 from .latency_arb import LatencyArbitrageStrategy
 from .event_trading import EventTradingStrategy
 from .ml_strategy import MLStrategy
 from .rl_strategy import RLStrategy
 from .meta import MetaStrategy
+from .breakout_donchian import DonchianBreakout
+from .mean_reversion_ema import MeanReversionEMA
+from .momentum_multi_tf import MomentumMultiTF
 
 __all__ = [
     "MarketMakerStrategy",
@@ -57,4 +60,17 @@ __all__ = [
     "MLStrategy",
     "RLStrategy",
     "MetaStrategy",
+    "strategies",
+    "allocators",
+    "backtester",
+    "risk",
+    "economics",
+    "optimizer",
+    "monitoring"
+    "DonchianBreakout",
+    "MeanReversionEMA",
+    "MomentumMultiTF",
+    "AvellanedaStoikov",
+    "PairStatArb",
+    "TriangularArb"
 ]

@@ -36,6 +36,21 @@ from ..indicators.microstructure import compute_microprice
 
 
 @dataclass
+class AvellanedaStoikov:
+    """Minimal Avellaneda-Stoikov implementation for fast quoting."""
+    gamma: float = 0.1
+    kappa: float = 1.5
+    sigma: float = 0.002
+    q: float = 0.0
+    
+    def quotes(self, s: float, dt: float = 1.0) -> Tuple[float, float]:
+        """Generate bid/ask quotes around reservation price."""
+        r = s - self.q * self.gamma * self.sigma**2 * dt
+        spread = self.gamma * self.sigma**2 * dt + (2/self.kappa)
+        return r - spread/2, r + spread/2
+
+
+@dataclass
 class MarketMakerStrategy:
     """Simplified Avellaneda–Stoikov market making strategy.
 
@@ -181,3 +196,22 @@ class MarketMakerStrategy:
             ("buy", bid, self.base_order_size),
             ("sell", ask, self.base_order_size),
         ]
+    
+    def compute_microprice_fallback(self, order_book: Dict[str, List[Tuple[float, float]]]) -> float:
+        """Fallback microprice computation if indicators module unavailable."""
+        bids, asks = order_book.get('bids', []), order_book.get('asks', [])
+        if not bids or not asks:
+            return (bids[0][0] + asks[0][0]) / 2 if bids and asks else 0.0
+        bid_price, bid_vol = bids[0]
+        ask_price, ask_vol = asks[0]
+        return (bid_price * ask_vol + ask_price * bid_vol) / (bid_vol + ask_vol)
+    
+    def quote_fallback(self, order_book: Dict[str, List[Tuple[float, float]]]) -> Tuple[float, float]:
+        """Alternative quote method using fallback microprice."""
+        try:
+            mid = compute_microprice(order_book, depth=1)
+        except ImportError:
+            mid = self.compute_microprice_fallback(order_book)
+        r_t = self.compute_reservation_price(mid)
+        s = self.compute_optimal_spread()
+        return r_t - s, r_t + s

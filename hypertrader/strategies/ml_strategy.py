@@ -134,6 +134,18 @@ def ml_signal(model: LogisticRegression, df: pd.DataFrame) -> MLSignal:
     return MLSignal(action=action, probability=prob)
 
 
+def simple_ml_signal(df: pd.DataFrame, lookback: int = 50, weight: float = 20.0) -> Tuple[int, float]:
+    """Generate simple momentum-based ML signal."""
+    if len(df) < lookback + 1:
+        return 0, 0.5
+    sub = df.iloc[-lookback:].copy()
+    r = sub['close'].pct_change().fillna(0.0).values
+    x = np.nan_to_num(r[-10:]).sum()
+    p = 1 / (1 + np.exp(-weight * x))
+    sig = 1 if p > 0.55 else -1 if p < 0.45 else 0
+    return sig, p
+
+
 @dataclass
 class MLStrategy:
     """Machine learning-based strategy using logistic regression.
@@ -219,3 +231,21 @@ class MLStrategy:
         elif prob_up < self.sell_threshold:
             orders.append(("sell", current_price, size))
         return orders
+
+
+@dataclass
+class SimpleMLS:
+    """Minimal ML strategy using momentum-based logistic regression."""
+    lookback: int = 50
+    weight: float = 20.0
+    
+    def update(self, df: pd.DataFrame):
+        """Update with DataFrame, return (signal, confidence, metadata)."""
+        if len(df) < self.lookback + 1:
+            return 0, 0.5, {}
+        sub = df.iloc[-self.lookback:].copy()
+        r = sub['close'].pct_change().fillna(0.0).values
+        x = np.nan_to_num(r[-10:]).sum()
+        p = 1 / (1 + np.exp(-self.weight * x))
+        sig = 1 if p > 0.55 else -1 if p < 0.45 else 0
+        return sig, p, {'x': float(x), 'p': float(p)}

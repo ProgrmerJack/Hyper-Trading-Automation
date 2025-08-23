@@ -27,6 +27,6 @@ Users may extend this module by adding metrics, slippage models or
 support for asynchronous event handling.
 """
 
-from .engine import Backtester
+from .engine import Backtester, Portfolio
 
 __all__ = ["Backtester"]

@@ -21,7 +21,7 @@ order book depth.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 
 @dataclass
@@ -90,3 +90,30 @@ class TriangularArbitrageStrategy:
             orders.append(("sell", self.pair_bc, self.size))
             orders.append(("sell", self.pair_ab, self.size))
         return orders
+
+
+@dataclass
+class TriangularArb:
+    """Minimal triangular arbitrage signal detector."""
+    threshold: float = 0.0005
+    
+    def signal(self, p_ab: float, p_bc: float, p_ac: float) -> str | None:
+        """Detect triangular arbitrage opportunity."""
+        loop = p_ab * p_bc / p_ac
+        if loop > 1 + self.threshold:
+            return 'A->B->C->A'
+        if loop < 1 - self.threshold:
+            return 'A->C->B->A'
+        return None
+
+
+def triangular_signal(p_ab: float, p_bc: float, p_ac: float, 
+                     threshold: float = 0.0005) -> Tuple[str | None, float]:
+    """Generate triangular arbitrage signal and loop ratio."""
+    loop = p_ab * p_bc / p_ac
+    signal = None
+    if loop > 1 + threshold:
+        signal = 'A->B->C->A'
+    elif loop < 1 - threshold:
+        signal = 'A->C->B->A'
+    return signal, loop

@@ -33,7 +33,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
-import numpy as np  # type: ignore
+import numpy as np
+import pandas as pd
 
 
 @dataclass
@@ -74,23 +75,8 @@ class StatisticalArbitrageStrategy:
     # +1 means long A / short B; -1 means short A / long B
     position_direction: int = field(default=0, init=False)
 
-    def update(self, price_a: float, price_b: float) -> List[Tuple[str, float, float]]:
-        """Update the strategy with new prices and return orders.
-
-        Parameters
-        ----------
-        price_a : float
-            Latest price of instrument A (e.g., mid price).
-        price_b : float
-            Latest price of instrument B.
-
-        Returns
-        -------
-        orders : list of tuple
-            A list of orders to execute, where each tuple is
-            ``(side, symbol, quantity)``.  ``side`` is "buy" or
-            "sell".  An empty list indicates no trades.
-        """
+    def update(self, price_a: float, price_b: float) -> List[Tuple[str, str, float]]:
+        """Update the strategy with new prices and return orders."""
         # Compute spread (simple difference).  More sophisticated
         # strategies might use a hedge ratio from regression.
         spread = price_a - price_b
@@ -109,7 +95,7 @@ class StatisticalArbitrageStrategy:
         else:
             zscore = (spread - mean) / std
 
-        orders: List[Tuple[str, float, float]] = []
+        orders: List[Tuple[str, str, float]] = []
         # If not currently in a position, check for entry
         if not self.in_position:
             if zscore > self.entry_threshold:
@@ -137,3 +123,42 @@ class StatisticalArbitrageStrategy:
                 self.in_position = False
                 self.position_direction = 0
         return orders
+
+
+@dataclass
+class PairStatArb:
+    """Minimal pairs trading strategy using z-score."""
+    lookback: int = 100
+    entry: float = 2.0
+    exit: float = 0.5
+    
+    def update(self, a: pd.Series, b: pd.Series) -> Tuple[int, float]:
+        """Update with price series, return (signal, z_score)."""
+        if len(a) < self.lookback or len(b) < self.lookback:
+            return 0, 0.0
+        spread = a.tail(self.lookback).values - b.tail(self.lookback).values
+        z = (spread[-1] - np.mean(spread)) / (np.std(spread) + 1e-9)
+        if z > self.entry:
+            return -1, float(z)  # Short A, Long B
+        if z < -self.entry:
+            return 1, float(z)   # Long A, Short B
+        if abs(z) < self.exit:
+            return 0, float(z)   # Close position
+        return 0, float(z)
+
+
+def pairs_signal(price_a: pd.Series, price_b: pd.Series, 
+                 lookback: int = 100, entry_thresh: float = 2.0, 
+                 exit_thresh: float = 0.5) -> Tuple[int, float]:
+    """Generate pairs trading signal from price series."""
+    if len(price_a) < lookback or len(price_b) < lookback:
+        return 0, 0.0
+    spread = price_a.tail(lookback).values - price_b.tail(lookback).values
+    z = (spread[-1] - np.mean(spread)) / (np.std(spread) + 1e-9)
+    if z > entry_thresh:
+        return -1, float(z)
+    elif z < -entry_thresh:
+        return 1, float(z)
+    elif abs(z) < exit_thresh:
+        return 0, float(z)
+    return 0, float(z)
