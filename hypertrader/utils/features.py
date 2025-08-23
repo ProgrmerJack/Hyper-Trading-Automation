@@ -117,6 +117,34 @@ def compute_obv(df: pd.DataFrame) -> pd.Series:
     return obv
 
 
+def ema(series: pd.Series, period: int) -> pd.Series:
+    """Alias for :func:`compute_ema` to match simplified imports."""
+    return compute_ema(series, period)
+
+
+def rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    """Alias for :func:`compute_rsi`."""
+    return compute_rsi(series, period)
+
+
+def macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+    """Return MACD and signal lines using :func:`compute_macd`."""
+    df = compute_macd(series, fast, slow, signal)
+    return df["macd"], df["signal"]
+
+
+def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Alias for :func:`compute_atr` accepting separate series."""
+    df = pd.DataFrame({"high": high, "low": low, "close": close})
+    return compute_atr(df, period)
+
+
+def on_balance_volume(close: pd.Series, volume: pd.Series) -> pd.Series:
+    """Alias for :func:`compute_obv` with series inputs."""
+    df = pd.DataFrame({"close": close, "volume": volume})
+    return compute_obv(df)
+
+
 def compute_moving_average(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window).mean()
 
