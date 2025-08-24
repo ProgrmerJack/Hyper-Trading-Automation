@@ -266,37 +266,6 @@ def compute_anchored_vwap(df: pd.DataFrame, anchor: str = 'high') -> pd.Series:
     return anchored
 
 
-def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Compute Average Directional Index (ADX)."""
-    if not {"high", "low", "close"}.issubset(df.columns):
-        raise ValueError("DataFrame must contain high, low and close columns")
-
-    up_move = df["high"].diff()
-    down_move = df["low"].shift() - df["low"]
-    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-
-    tr = pd.concat(
-        [
-            df["high"] - df["low"],
-            (df["high"] - df["close"].shift()).abs(),
-            (df["low"] - df["close"].shift()).abs(),
-        ],
-        axis=1,
-    ).max(axis=1)
-
-    atr = tr.rolling(window=period).mean()
-    # Preserve the original index so calculations align with ``atr`` even when
-    # ``df`` uses a DatetimeIndex.  Without specifying the index, pandas would
-    # align on the default RangeIndex leading to all-NaN results for
-    # non-integer indices.
-    plus_di = 100 * pd.Series(plus_dm, index=df.index).rolling(window=period).mean() / atr
-    minus_di = 100 * pd.Series(minus_dm, index=df.index).rolling(window=period).mean() / atr
-    dx = (plus_di - minus_di).abs() / (plus_di + minus_di) * 100
-    adx = dx.rolling(window=period).mean()
-    return adx
-
-
 def compute_stochastic(
     df: pd.DataFrame, k_period: int = 14, d_period: int = 3
 ) -> pd.DataFrame:
@@ -570,3 +539,52 @@ def compute_parabolic_sar(
                 ep = high[i]
                 af = step
     return pd.Series(sar, index=df.index)
+
+
+def compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Compute Average Directional Index (ADX).
+    
+    Parameters
+    ----------
+    high : pd.Series
+        High prices
+    low : pd.Series
+        Low prices  
+    close : pd.Series
+        Close prices
+    period : int, optional
+        Period for ADX calculation, by default 14
+        
+    Returns
+    -------
+    pd.Series
+        ADX values
+    """
+    # Calculate True Range
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    # Calculate Directional Movement
+    dm_plus = high - high.shift(1)
+    dm_minus = low.shift(1) - low
+    
+    # Filter directional movement
+    dm_plus = dm_plus.where((dm_plus > dm_minus) & (dm_plus > 0), 0)
+    dm_minus = dm_minus.where((dm_minus > dm_plus) & (dm_minus > 0), 0)
+    
+    # Smooth the values
+    tr_smooth = tr.rolling(period).mean()
+    dm_plus_smooth = dm_plus.rolling(period).mean()
+    dm_minus_smooth = dm_minus.rolling(period).mean()
+    
+    # Calculate Directional Indicators
+    di_plus = 100 * (dm_plus_smooth / tr_smooth)
+    di_minus = 100 * (dm_minus_smooth / tr_smooth)
+    
+    # Calculate ADX
+    dx = 100 * abs(di_plus - di_minus) / (di_plus + di_minus)
+    adx = dx.rolling(period).mean()
+    
+    return adx
