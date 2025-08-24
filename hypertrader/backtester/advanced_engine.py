@@ -1,5 +1,5 @@
 """
-Advanced backtesting engine for hypertrader_plus.
+Advanced backtesting engine for hypertrader.
 
 The ``AdvancedBacktester`` builds upon the simple event‑driven
 backtester by integrating the ``AdvancedSimulationConnector`` which
@@ -11,9 +11,9 @@ and records PnL over time.
 
 Usage example::
 
-    from hypertrader_plus.connectors.advanced import AdvancedSimulationConnector
-    from hypertrader_plus.strategies.market_maker import MarketMakerStrategy
-    from hypertrader_plus.backtester.advanced_engine import AdvancedBacktester
+    from hypertrader.connectors.advanced import AdvancedSimulationConnector
+    from hypertrader.strategies.market_maker import MarketMakerStrategy
+    from hypertrader.backtester.advanced_engine import AdvancedBacktester
 
     connector = AdvancedSimulationConnector(historical_data, latency_ticks=2)
     strategy = MarketMakerStrategy(symbol="BTC/USDT", gamma=0.1, kappa=1.0, sigma=0.02, base_order_size=0.01)

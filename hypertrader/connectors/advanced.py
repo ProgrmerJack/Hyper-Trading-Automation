@@ -33,6 +33,7 @@ from typing import Dict, List, Tuple, Optional
 import datetime as _dt
 
 from .exchange import SimulationConnector, Order
+from ..oms import OrderState  # Import order state enumeration for OMS updates
 
 
 class AdvancedSimulationConnector(SimulationConnector):
@@ -165,11 +166,7 @@ class AdvancedSimulationConnector(SimulationConnector):
         # Update OMS if present
         if getattr(self, "oms", None) is not None:
             # Transition to FILLED in OMS and record the fill
-            try:
-                from ..execution.order_manager import OrderState
-                self.oms.update_state(order.order_id, OrderState.FILLED)  # type: ignore
-                self.oms.fill(order.order_id, order.quantity, fill_price)  # type: ignore
-            except ImportError:
-                pass  # OMS not available
+            self.oms.update_state(order.order_id, OrderState.FILLED)  # type: ignore
+            self.oms.fill(order.order_id, order.quantity, fill_price)  # type: ignore
         # Remove from open orders
         self._open_orders.pop(order.order_id, None)

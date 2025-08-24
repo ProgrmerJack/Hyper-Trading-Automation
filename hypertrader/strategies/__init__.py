@@ -42,6 +42,7 @@ See each module for further details.
 from .market_maker import MarketMakerStrategy, AvellanedaStoikov
 from .stat_arb import StatisticalArbitrageStrategy, PairStatArb
 from .triangular_arb import TriangularArbitrageStrategy, TriangularArb
+from .bbrsi import BBRSIStrategy
 from .latency_arb import LatencyArbitrageStrategy
 from .event_trading import EventTradingStrategy
 from .ml_strategy import MLStrategy, SimpleMLS

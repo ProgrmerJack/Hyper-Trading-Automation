@@ -79,6 +79,7 @@ from .strategies import (
     PairStatArb,
     TriangularArb,
     LatencyArbitrageStrategy,
+    BBRSIStrategy,
 )
 from .binance_bots import (
     SpotGrid,
