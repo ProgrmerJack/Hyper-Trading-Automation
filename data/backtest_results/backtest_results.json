@@ -1,0 +1,30 @@
+{
+  "MA_Fast": {
+    "total_return": 0.0,
+    "sharpe_ratio": 0,
+    "max_drawdown": 0.0,
+    "num_trades": 0,
+    "win_rate": 0
+  },
+  "MA_Slow": {
+    "total_return": 0.0,
+    "sharpe_ratio": 0,
+    "max_drawdown": 0.0,
+    "num_trades": 0,
+    "win_rate": 0
+  },
+  "RSI_14": {
+    "total_return": 0.0,
+    "sharpe_ratio": 0,
+    "max_drawdown": 0.0,
+    "num_trades": 0,
+    "win_rate": 0
+  },
+  "BB_20": {
+    "total_return": 0.0,
+    "sharpe_ratio": 0,
+    "max_drawdown": 0.0,
+    "num_trades": 0,
+    "win_rate": 0
+  }
+}

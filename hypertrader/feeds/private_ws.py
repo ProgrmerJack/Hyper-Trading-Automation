@@ -99,7 +99,9 @@ class PrivateWebSocketFeed:
                     headers={"X-MBX-APIKEY": self.api_key},
                 )
                 listenkey_refresh_counter.inc()
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.warning(f"Listen key keepalive failed: {e}")
                 break
 
     async def _connect(self) -> None:
@@ -116,7 +118,9 @@ class PrivateWebSocketFeed:
                         params={"listenKey": self._listen_key},
                         headers={"X-MBX-APIKEY": self.api_key},
                     )
-                except Exception:
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Failed to close old listen key: {e}")
                     pass
                 self._listen_key = None
             key = await self._binance_listen_key()
@@ -266,7 +270,12 @@ class PrivateWebSocketFeed:
                 ws_ping_rtt_histogram.observe(time.perf_counter() - start)
                 raw = await asyncio.wait_for(ws.recv(), timeout=self.heartbeat)
                 missed = 0
-                msg = json.loads(raw)
+                try:
+                    msg = json.loads(raw)
+                except json.JSONDecodeError as e:
+                    import logging
+                    logging.warning(f"Invalid JSON received: {raw[:100]}... Error: {e}")
+                    continue
                 if self.exchange == "binance":
                     await self._handle_binance(msg)
             except asyncio.TimeoutError:

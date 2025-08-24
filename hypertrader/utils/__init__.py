@@ -28,6 +28,7 @@ from .risk import (
     trailing_stop,
     drawdown_throttle,
     drl_throttle,
+    fee_slippage_gate,
 )
 from .rl_utils import dynamic_order_size, score_state
 from .anomaly import compute_entropy, detect_entropy_regime
@@ -39,6 +40,7 @@ __all__ = [
     "trailing_stop",
     "drawdown_throttle",
     "drl_throttle",
+    "fee_slippage_gate",
     # RL utilities
     "dynamic_order_size",
     "score_state",

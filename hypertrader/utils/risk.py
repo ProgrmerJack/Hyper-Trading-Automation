@@ -158,6 +158,8 @@ def compound_capital(capital: float, daily_return: float) -> float:
     float
         Updated capital after applying the return.
     """
+    if capital <= 0:
+        raise ValueError("Capital must be positive")
     return capital * (1 + daily_return)
 
 
@@ -288,7 +290,13 @@ def quantum_leverage_modifier(
         logger.warning("quantum_leverage_fallback: %s", exc)
         return 1.0
 
+    # Parameterize circuit with features
     qc = EfficientSU2(n_qubits)
+    # Use features to set circuit parameters
+    params = [f % (2 * 3.14159) for f in features[:qc.num_parameters]]
+    if len(params) < qc.num_parameters:
+        params.extend([0.0] * (qc.num_parameters - len(params)))
+    qc = qc.assign_parameters(params[:qc.num_parameters])
     backend = Aer.get_backend("aer_simulator")
     result = execute(qc, backend, shots=shots).result()
     counts = result.get_counts()
@@ -308,6 +316,47 @@ def shap_explain(model, features):
     return explainer(features)
 
 
+def fee_slippage_gate(
+    current_price: float,
+    target_price: float,
+    fee_rate: float = 0.0005,
+    slippage_rate: float = 0.0002,
+) -> bool:
+    """Decide whether an order's expected edge exceeds fees and slippage.
+
+    This helper estimates the margin between the current mid price and
+    the target execution price as a fraction of the current price and
+    compares it against the sum of the fee rate and an assumed
+    slippage rate.  If the margin is greater than the cost, the gate
+    returns ``True`` (proceed with the order); otherwise it returns
+    ``False``.
+
+    Parameters
+    ----------
+    current_price : float
+        The latest mid price or fair value for the instrument.
+    target_price : float
+        The price at which the strategy intends to trade.  For a
+        market order, this may equal the current price; for a limit
+        order it is the limit price.
+    fee_rate : float, optional
+        Proportional trading fee (maker/taker).  Defaults to 0.05%.
+    slippage_rate : float, optional
+        Estimated slippage expressed as a fraction of the price.  Defaults
+        to 0.02%.
+
+    Returns
+    -------
+    bool
+        ``True`` if the expected margin exceeds the cost, ``False`` otherwise.
+    """
+    if current_price <= 0:
+        return False
+    expected_edge = abs(target_price - current_price) / current_price
+    total_cost = fee_rate + slippage_rate
+    return expected_edge > total_cost
+
+
 __all__ = [
     "calculate_position_size",
     "trailing_stop",
@@ -321,4 +370,5 @@ __all__ = [
     "drl_throttle",
     "quantum_leverage_modifier",
     "shap_explain",
+    "fee_slippage_gate",
 ]

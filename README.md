@@ -51,8 +51,13 @@ score that influences trading signals.
 
 ## Setup
 
-1. Install dependencies:
+1. **Create Python 3.10 Environment**:
+```bash
+conda create -n trading-py310 python=3.10 -y
+conda activate trading-py310
+```
 
+2. **Install Dependencies**:
 ```bash
 pip install -r requirements.txt
 ```
@@ -78,13 +83,49 @@ You may also pass a custom config path to the bot using `--config`.
 ```bash
 pytest -v
 ```
-3. Example backtest with performance metrics:
-
+3. **Run Tests**:
 ```bash
-python tests/backtest.py
+pytest -v
+```
+
+## Quick Start
+
+### 1. Fetch Real Market Data
+```bash
+cd scripts
+python simple_data_fetch.py
+```
+
+### 2. Run Backtest
+```bash
+cd examples
+python real_data_backtest_example.py
+```
+
+### 3. Run Live Bot (Paper Trading)
+```bash
+python -m hypertrader.bot BTC-USD --account_balance 10000 --risk_percent 2
 ```
 
 When not operating live, the bot writes decisions to `signal.json` for offline inspection.
+
+## Project Structure
+
+```
+Hyper-Trading-Automation/
+├── hypertrader/           # Main package
+│   ├── strategies/        # Trading strategies
+│   ├── binance_bots/     # Binance-style bots
+│   ├── data/             # Data fetching & storage
+│   ├── risk/             # Risk management
+│   ├── execution/        # Order execution
+│   └── utils/            # Utilities & indicators
+├── scripts/              # Data fetching scripts
+├── examples/             # Backtest examples
+├── data/                 # Market data & results
+├── docs/                 # Documentation
+└── tests/                # Test suite
+```
 
 ### Running the autonomous bot
 

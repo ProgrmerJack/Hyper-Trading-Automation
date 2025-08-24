@@ -21,7 +21,7 @@ def onchain_zscore(df: pd.DataFrame, window: int = 30) -> pd.Series:
         raise ValueError("DataFrame must contain 'gas' column")
     mean = df["gas"].rolling(window).mean()
     std = df["gas"].rolling(window).std()
-    z = (df["gas"] - mean) / std
+    z = (df["gas"] - mean) / std.replace(0, 1e-10)  # Avoid division by zero
     return z.fillna(0)
 
 
@@ -42,8 +42,8 @@ def order_skew(order_book: dict, depth: int = 5) -> float:
     """
     bids = order_book.get("bids", [])[:depth]
     asks = order_book.get("asks", [])[:depth]
-    bid_vol = sum(level[1] for level in bids)
-    ask_vol = sum(level[1] for level in asks)
+    bid_vol = sum(level[1] for level in bids if len(level) > 1)
+    ask_vol = sum(level[1] for level in asks if len(level) > 1)
     total = bid_vol + ask_vol
     if total == 0:
         return 0.0
@@ -74,8 +74,8 @@ def dom_heatmap_ratio(order_book: dict, layers: int = 10) -> float:
     """
     bids = order_book.get("bids", [])[:layers]
     asks = order_book.get("asks", [])[:layers]
-    bid_vol = sum(level[1] for level in bids)
-    ask_vol = sum(level[1] for level in asks)
+    bid_vol = sum(level[1] for level in bids if len(level) > 1)
+    ask_vol = sum(level[1] for level in asks if len(level) > 1)
     if ask_vol == 0:
         return float("inf") if bid_vol > 0 else 1.0
     return bid_vol / ask_vol

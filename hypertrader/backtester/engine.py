@@ -1,20 +1,19 @@
 """
-Event‑driven backtesting engine for hypertrader_plus.
+Event‑driven backtesting engine for hypertrader.
 
-This module defines a small backtester that can be used to evaluate
+This module defines a backtester that can be used to evaluate
 strategies offline using historical trade data.  The backtester
 operates by consuming sequential trade ticks from a
 ``SimulationConnector``, invoking strategies with the latest price
 information, executing orders against a simplified price model and
-updating a portfolio.  The engine is intentionally straightforward
-and does not model partial fills, order queues or fees; for more
-realistic simulation those aspects should be added by subclassing.
+updating a portfolio.  The engine includes fee modeling, PnL tracking,
+and support for both symbol-based and DataFrame-based backtesting.
 
 Example usage::
 
-    from hypertrader_plus.connectors import SimulationConnector
-    from hypertrader_plus.strategies import MarketMakerStrategy
-    from hypertrader_plus.backtester import Backtester
+    from hypertrader.connectors.exchange import SimulationConnector
+    from hypertrader.strategies.market_maker import MarketMakerStrategy
+    from hypertrader.backtester.engine import Backtester
 
     # load historical data as {symbol: [(timestamp, price, qty, side), ...]}
     connector = SimulationConnector(historical_data)
@@ -96,7 +95,22 @@ class Backtester:
         self.pnl_history: List[Tuple[_dt.datetime, float]] = []
 
     def run(self, symbol: str = None, df: pd.DataFrame = None, meta_strategy = None) -> Dict[str, Any]:
-        """Execute backtest on symbol or DataFrame."""
+        """Execute backtest on symbol or DataFrame.
+        
+        Parameters
+        ----------
+        symbol : str, optional
+            The symbol to trade using connector data.
+        df : pd.DataFrame, optional
+            OHLCV DataFrame for backtesting.
+        meta_strategy : object, optional
+            Strategy object for DataFrame-based backtesting.
+            
+        Returns
+        -------
+        dict
+            Backtest results including portfolio, PnL, and trades.
+        """
         if df is not None and meta_strategy is not None:
             return self._run_dataframe(df, meta_strategy)
         return self._run_symbol(symbol)

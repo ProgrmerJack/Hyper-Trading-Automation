@@ -12,6 +12,12 @@ from ..utils.features import (
     compute_obv,
     compute_wavetrend,
     compute_multi_rsi,
+    compute_ichimoku,
+    compute_parabolic_sar,
+    compute_keltner_channels,
+    compute_cci,
+    compute_fibonacci_retracements,
+    compute_atr,
 )
 
 
@@ -55,9 +61,20 @@ def generate_signal(
         anchor_low = compute_anchored_vwap(data, anchor='low').iloc[-1]
         vwap = compute_vwap(data).iloc[-1]
         obv = compute_obv(data).iloc[-1]
+        atr = compute_atr(data).iloc[-1]
+        ichimoku = compute_ichimoku(data)
+        tenkan = ichimoku['tenkan'].iloc[-1]
+        kijun = ichimoku['kijun'].iloc[-1]
+        psar = compute_parabolic_sar(data).iloc[-1]
+        keltner = compute_keltner_channels(data)
+        kelt_upper = keltner['upper'].iloc[-1]
+        kelt_lower = keltner['lower'].iloc[-1]
+        cci = compute_cci(data).iloc[-1]
+        fib = compute_fibonacci_retracements(data)
+        fib_618 = fib['level_0.618'].iloc[-1]
     else:
-        anchor_high = anchor_low = float('nan')
-        vwap = obv = float('nan')
+        anchor_high = anchor_low = vwap = obv = atr = float('nan')
+        tenkan = kijun = psar = kelt_upper = kelt_lower = cci = fib_618 = float('nan')
 
     if {'high', 'low', 'close'}.issubset(data.columns):
         wt = compute_wavetrend(data).iloc[-1]
@@ -85,6 +102,11 @@ def generate_signal(
         and (pd.isna(obv) or obv > 0)
         and (pd.isna(wt) or wt > -50)
         and (pd.isna(mrsi) or mrsi < 30)
+        and (pd.isna(tenkan) or price > tenkan)
+        and (pd.isna(psar) or price > psar)
+        and (pd.isna(kelt_lower) or price > kelt_lower)
+        and (pd.isna(cci) or cci > -100)
+        and (pd.isna(fib_618) or price > fib_618 * 0.99)
     ):
         return Signal('BUY')
     if (
@@ -102,6 +124,11 @@ def generate_signal(
         and (pd.isna(obv) or obv < 0)
         and (pd.isna(wt) or wt < 50)
         and (pd.isna(mrsi) or mrsi > 70)
+        and (pd.isna(tenkan) or price < tenkan)
+        and (pd.isna(psar) or price < psar)
+        and (pd.isna(kelt_upper) or price < kelt_upper)
+        and (pd.isna(cci) or cci < 100)
+        and (pd.isna(fib_618) or price < fib_618 * 1.01)
     ):
         return Signal('SELL')
     return Signal('HOLD')

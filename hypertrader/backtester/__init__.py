@@ -28,5 +28,6 @@ support for asynchronous event handling.
 """
 
 from .engine import Backtester, Portfolio
+from .advanced_engine import AdvancedBacktester
 
-__all__ = ["Backtester"]
+__all__ = ["Backtester", "Portfolio", "AdvancedBacktester"]

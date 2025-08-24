@@ -1,0 +1,98 @@
+# Multi-Strategy Trading Bot Configuration
+
+trading:
+  symbol: "BTC-USD"
+  account_balance: 10000.0
+  risk_percent: 2.0
+  exchange: "binance"
+  max_exposure: 3.0
+
+# Strategy Configuration
+strategies:
+  enabled:
+    - "indicator"      # Original composite indicator strategy
+    - "ma_cross"       # Moving average crossover
+    - "rsi"           # RSI strategy
+    - "bb"            # Bollinger Bands
+    - "macd"          # MACD strategy
+    - "ichimoku"      # Ichimoku Cloud
+    - "psar"          # Parabolic SAR
+    - "cci"           # Commodity Channel Index
+    - "donchian"      # Donchian Breakout
+    - "mean_reversion" # Mean Reversion EMA
+    - "momentum"      # Momentum Multi-TF
+    - "event_trading" # Event Trading
+    - "ml_simple"     # Simple ML Strategy
+  
+  # Strategy-specific parameters
+  parameters:
+    ma_cross:
+      fast: 10
+      slow: 30
+    rsi:
+      period: 14
+      oversold: 30
+      overbought: 70
+    bb:
+      period: 20
+      std_dev: 2.0
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    ichimoku:
+      tenkan_period: 9
+      kijun_period: 26
+      senkou_period: 52
+    psar:
+      step: 0.02
+      max_step: 0.2
+    cci:
+      period: 20
+    donchian:
+      period: 20
+    mean_reversion:
+      lookback: 20
+      threshold: 2.0
+    momentum:
+      short_period: 10
+      long_period: 30
+
+# Allocator Configuration
+allocator:
+  type: "hedge"  # hedge, equal_weight, performance_based
+  learning_rate: 0.1
+  min_weight: 0.01
+  rebalance_frequency: 10  # trades
+
+# Risk Management
+risk:
+  max_daily_loss: 2000.0
+  max_position: 30000.0
+  fee_rate: 0.001
+  slippage: 0.0005
+  max_var: 0.05
+  max_volatility: 0.1
+  
+  # Strategy-specific risk limits
+  strategy_limits:
+    max_strategies_per_signal: 5
+    min_agreement_threshold: 0.6
+    confidence_weight: true
+
+# API Keys (use environment variables)
+api_keys:
+  news: null  # Set NEWS_API_KEY environment variable
+  fred: null  # Set FRED_API_KEY environment variable
+  etherscan: null  # Set ETHERSCAN_API_KEY environment variable
+
+# Logging and Monitoring
+logging:
+  level: "INFO"
+  strategy_performance: true
+  signal_details: true
+  
+monitoring:
+  metrics_server: true
+  port: 8000
+  anomaly_detection: true

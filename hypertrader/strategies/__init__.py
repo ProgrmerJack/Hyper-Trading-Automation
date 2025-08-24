@@ -44,7 +44,7 @@ from .stat_arb import StatisticalArbitrageStrategy, PairStatArb
 from .triangular_arb import TriangularArbitrageStrategy, TriangularArb
 from .latency_arb import LatencyArbitrageStrategy
 from .event_trading import EventTradingStrategy
-from .ml_strategy import MLStrategy
+from .ml_strategy import MLStrategy, SimpleMLS
 from .rl_strategy import RLStrategy
 from .meta import MetaStrategy
 from .breakout_donchian import DonchianBreakout
@@ -58,19 +58,13 @@ __all__ = [
     "LatencyArbitrageStrategy",
     "EventTradingStrategy",
     "MLStrategy",
+    "SimpleMLS",
     "RLStrategy",
     "MetaStrategy",
-    "strategies",
-    "allocators",
-    "backtester",
-    "risk",
-    "economics",
-    "optimizer",
-    "monitoring"
     "DonchianBreakout",
     "MeanReversionEMA",
     "MomentumMultiTF",
     "AvellanedaStoikov",
     "PairStatArb",
-    "TriangularArb"
+    "TriangularArb",
 ]

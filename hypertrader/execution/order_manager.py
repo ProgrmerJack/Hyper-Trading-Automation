@@ -48,7 +48,7 @@ class OrderManager:
         if not order:
             return
         order.filled += quantity
-        if order.filled >= order.quantity:
+        if abs(order.filled - order.quantity) < 1e-8:  # Use epsilon for float comparison
             order.state = OrderState.FILLED
         else:
             order.state = OrderState.PARTIAL

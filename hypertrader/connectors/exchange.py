@@ -68,6 +68,10 @@ class Order:
     quantity: float
     price: Optional[float]
     timestamp: _dt.datetime
+    # Added fields for persistent order management
+    state: str = "NEW"
+    filled_qty: float = 0.0
+    avg_filled_price: Optional[float] = None
 
 
 class ExchangeConnector(abc.ABC):
@@ -187,6 +191,14 @@ class SimulationConnector(ExchangeConnector):
         self._indices = {sym: 0 for sym in historical_data}
         self._open_orders: Dict[int, Order] = {}
         self._next_order_id = 1
+        # Optional OMS integration
+        try:
+            from ..execution.order_manager import PersistentOMS, OrderState
+            self.oms = PersistentOMS()
+        except ImportError:
+            self.oms = None
+        # Track processed indices for advanced simulation
+        self._processed_indices = {sym: 0 for sym in historical_data}
 
     def get_order_book(self, symbol: str) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
         """Return a synthetic order book based on the last trade price.
@@ -250,6 +262,14 @@ class SimulationConnector(ExchangeConnector):
             timestamp=_dt.datetime.utcnow(),
         )
         self._next_order_id += 1
+        # Update OMS if available
+        if self.oms is not None:
+            try:
+                from ..execution.order_manager import OrderState
+                self.oms.submit(order)
+                self.oms.update_state(order.order_id, OrderState.ACK)
+            except ImportError:
+                pass
         if price is None:
             # Market order: immediate fill at best price
             bids, asks = self.get_order_book(symbol)
@@ -257,7 +277,16 @@ class SimulationConnector(ExchangeConnector):
                 fill_price = asks[0][0]
             else:
                 fill_price = bids[0][0]
-            # In a real system, we would record fills
+            order.state = "FILLED"
+            order.filled_qty = quantity
+            order.avg_filled_price = fill_price
+            if self.oms is not None:
+                try:
+                    from ..execution.order_manager import OrderState
+                    self.oms.update_state(order.order_id, OrderState.FILLED)
+                    self.oms.fill(order.order_id, quantity, fill_price)
+                except ImportError:
+                    pass
         else:
             # For limit orders, we simply record them and hope they
             # cross the spread.  This is a naïve model.
@@ -267,3 +296,8 @@ class SimulationConnector(ExchangeConnector):
     def cancel_order(self, order_id: int) -> None:
         """Cancel a simulated limit order if it exists."""
         self._open_orders.pop(order_id, None)
+        if self.oms is not None:
+            try:
+                self.oms.cancel(order_id)
+            except (ImportError, AttributeError):
+                pass

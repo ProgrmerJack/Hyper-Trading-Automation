@@ -32,6 +32,14 @@ from ..utils.features import (
     compute_wavetrend,
     compute_multi_rsi,
     compute_vpvr_poc,
+    compute_ichimoku,
+    compute_parabolic_sar,
+    compute_keltner_channels,
+    compute_cci,
+    compute_fibonacci_retracements,
+    compute_atr,
+    compute_twap,
+    compute_cumulative_delta,
 )
 
 from ..utils.macro import compute_risk_tolerance
@@ -68,6 +76,16 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
         features["stoch_k"] = stoch["k"].fillna(0)
         features["stoch_d"] = stoch["d"].fillna(0)
         features["wavetrend"] = compute_wavetrend(df).fillna(0)
+        features["atr"] = compute_atr(df).fillna(0)
+        ichimoku = compute_ichimoku(df)
+        features["tenkan"] = ichimoku["tenkan"].fillna(0)
+        features["kijun"] = ichimoku["kijun"].fillna(0)
+        features["psar"] = compute_parabolic_sar(df).fillna(0)
+        keltner = compute_keltner_channels(df)
+        features["kelt_width"] = (keltner["upper"] - keltner["lower"]).fillna(0)
+        features["cci"] = compute_cci(df).fillna(0)
+        fib = compute_fibonacci_retracements(df)
+        features["fib_dist"] = (df["close"] - fib["level_0.618"]).fillna(0)
     if isinstance(df.index, pd.DatetimeIndex):
         features["multi_rsi"] = compute_multi_rsi(df).fillna(0)
     if "volume" in df:
@@ -76,6 +94,9 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
         features["obv"] = compute_obv(df).fillna(0)
         poc = compute_vpvr_poc(df)
         features["poc_diff"] = (df["close"] - poc).fillna(0)
+        features["twap"] = compute_twap(df).fillna(0)
+        if {"buy_vol", "sell_vol"}.issubset(df.columns):
+            features["cum_delta"] = compute_cumulative_delta(df).fillna(0)
     if {"inflows", "outflows"}.issubset(df.columns):
         features["net_flow"] = compute_exchange_netflow(df).fillna(0)
 
@@ -122,9 +143,18 @@ def cross_validate_model(df: pd.DataFrame, cv: int = 5) -> float:
 
 
 def ml_signal(model: LogisticRegression, df: pd.DataFrame) -> MLSignal:
-    """Generate ML-based trading signal."""
+    """Generate ML-based trading signal with SHAP explainability."""
+    from ..utils.risk import shap_explain
+    
     feat = extract_features(df).iloc[[-1]]
     prob = model.predict_proba(feat)[0, 1]
+    
+    # Add SHAP explainability for model interpretation
+    try:
+        shap_values = shap_explain(model, feat)
+    except Exception:
+        shap_values = None
+    
     if prob > 0.6:
         action = "BUY"
     elif prob < 0.4:

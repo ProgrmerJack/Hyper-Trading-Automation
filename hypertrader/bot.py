@@ -6,7 +6,7 @@ import os
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Tuple
 from collections.abc import Sequence
 from collections import deque
 from dataclasses import dataclass, field
@@ -22,6 +22,21 @@ from .utils.features import (
     onchain_zscore,
     order_skew,
     dom_heatmap_ratio,
+    compute_exchange_netflow,
+    compute_twap,
+    compute_cumulative_delta,
+    compute_moving_average,
+    compute_ichimoku,
+    compute_parabolic_sar,
+    compute_keltner_channels,
+    compute_cci,
+    compute_fibonacci_retracements,
+)
+from .indicators.microstructure import (
+    compute_microprice,
+    flow_toxicity,
+    detect_iceberg,
+    detect_entropy_regime,
 )
 from .utils.risk import (
     calculate_position_size,
@@ -34,6 +49,9 @@ from .utils.risk import (
     drl_throttle,
     quantum_leverage_modifier,
     cap_position_value,
+    fee_slippage_gate,
+    compound_capital,
+    shap_explain,
 )
 from .utils.volatility import rank_symbols_by_volatility
 from .utils.monitoring import (
@@ -45,7 +63,31 @@ from .utils.monitoring import (
 )
 from .utils.logging import get_logger, log_json
 from .strategies.indicator_signals import generate_signal
-from .strategies.ml_strategy import ml_signal
+from .strategies.ml_strategy import ml_signal, SimpleMLS
+from .strategies import (
+    MarketMakerStrategy,
+    StatisticalArbitrageStrategy,
+    TriangularArbitrageStrategy,
+    EventTradingStrategy,
+    MLStrategy,
+    RLStrategy,
+    MetaStrategy,
+    DonchianBreakout,
+    MeanReversionEMA,
+    MomentumMultiTF,
+    AvellanedaStoikov,
+    PairStatArb,
+    TriangularArb,
+    LatencyArbitrageStrategy,
+)
+from .binance_bots import (
+    SpotGrid,
+    FuturesGrid,
+    RebalancingBot,
+    SpotDCA,
+    FundingArbBot,
+)
+from .allocators import HedgeAllocator
 
 from .data.fetch_data import fetch_ohlcv, fetch_order_book
 from .data.oms_store import OMSStore
@@ -60,6 +102,407 @@ from .execution.ccxt_executor import place_order, cancel_order, ex
 from .risk.manager import RiskManager, RiskParams
 
 load_dotenv()
+
+
+def initialize_all_strategies(symbol: str, config_path: str | None = None) -> dict[str, Any]:
+    """Initialize all available trading strategies based on configuration."""
+    strategies = {}
+    
+    # Load configuration
+    config = {}
+    if config_path:
+        try:
+            config = load_config(config_path)
+        except Exception:
+            pass
+    
+    enabled_strategies = config.get('strategies', {}).get('enabled', [
+        'indicator', 'ma_cross', 'rsi', 'bb', 'macd', 'ichimoku', 'psar', 'cci', 'keltner', 'fibonacci', 
+        'ml_simple', 'market_maker', 'stat_arb', 'triangular_arb', 'event_trading', 'rl_strategy',
+        'spot_grid', 'futures_grid', 'rebalancing', 'spot_dca', 'funding_arb'
+    ])
+    strategy_params = config.get('strategies', {}).get('parameters', {})
+    
+    # Technical indicator strategies
+    if 'ma_cross' in enabled_strategies:
+        params = strategy_params.get('ma_cross', {'fast': 10, 'slow': 30})
+        strategies['ma_cross'] = {'type': 'technical', 'params': params}
+    
+    if 'rsi' in enabled_strategies:
+        params = strategy_params.get('rsi', {'period': 14, 'oversold': 30, 'overbought': 70})
+        strategies['rsi'] = {'type': 'technical', 'params': params}
+    
+    if 'bb' in enabled_strategies:
+        params = strategy_params.get('bb', {'period': 20, 'std_dev': 2})
+        strategies['bb'] = {'type': 'technical', 'params': params}
+    
+    if 'macd' in enabled_strategies:
+        params = strategy_params.get('macd', {'fast': 12, 'slow': 26, 'signal': 9})
+        strategies['macd'] = {'type': 'technical', 'params': params}
+    
+    if 'ichimoku' in enabled_strategies:
+        params = strategy_params.get('ichimoku', {})
+        strategies['ichimoku'] = {'type': 'technical', 'params': params}
+    
+    if 'psar' in enabled_strategies:
+        params = strategy_params.get('psar', {'step': 0.02, 'max_step': 0.2})
+        strategies['psar'] = {'type': 'technical', 'params': params}
+    
+    if 'cci' in enabled_strategies:
+        params = strategy_params.get('cci', {'period': 20})
+        strategies['cci'] = {'type': 'technical', 'params': params}
+    
+    if 'keltner' in enabled_strategies:
+        params = strategy_params.get('keltner', {'ema_period': 20, 'atr_period': 10, 'multiplier': 2.0})
+        strategies['keltner'] = {'type': 'technical', 'params': params}
+    
+    if 'fibonacci' in enabled_strategies:
+        params = strategy_params.get('fibonacci', {'window': 50})
+        strategies['fibonacci'] = {'type': 'technical', 'params': params}
+    
+    # Advanced strategies
+    if 'donchian' in enabled_strategies:
+        try:
+            strategies['donchian'] = DonchianBreakout(symbol)
+        except Exception:
+            pass
+    
+    if 'mean_reversion' in enabled_strategies:
+        try:
+            strategies['mean_reversion'] = MeanReversionEMA(symbol)
+        except Exception:
+            pass
+    
+    if 'momentum' in enabled_strategies:
+        try:
+            strategies['momentum'] = MomentumMultiTF(symbol)
+        except Exception:
+            pass
+    
+    if 'event_trading' in enabled_strategies:
+        try:
+            strategies['event_trading'] = EventTradingStrategy(symbol)
+        except Exception:
+            pass
+    
+    if 'ml_simple' in enabled_strategies:
+        try:
+            strategies['ml_simple'] = SimpleMLS()
+        except Exception:
+            pass
+    
+    # Advanced strategies
+    if 'market_maker' in enabled_strategies:
+        try:
+            strategies['market_maker'] = MarketMakerStrategy(symbol)
+        except Exception:
+            pass
+    
+    if 'stat_arb' in enabled_strategies:
+        try:
+            strategies['stat_arb'] = StatisticalArbitrageStrategy(symbol)
+        except Exception:
+            pass
+    
+    if 'triangular_arb' in enabled_strategies:
+        try:
+            strategies['triangular_arb'] = TriangularArbitrageStrategy(symbol)
+        except Exception:
+            pass
+    
+    if 'event_trading' in enabled_strategies:
+        try:
+            strategies['event_trading'] = EventTradingStrategy(symbol)
+        except Exception:
+            pass
+    
+    if 'rl_strategy' in enabled_strategies:
+        try:
+            strategies['rl_strategy'] = RLStrategy(symbol)
+        except Exception:
+            pass
+    
+    # Binance-style bots
+    if 'spot_grid' in enabled_strategies:
+        try:
+            params = strategy_params.get('spot_grid', {'grid_size': 10, 'price_range': 0.1})
+            strategies['spot_grid'] = SpotGrid(symbol, **params)
+        except Exception:
+            pass
+    
+    if 'futures_grid' in enabled_strategies:
+        try:
+            params = strategy_params.get('futures_grid', {'grid_size': 10, 'price_range': 0.1})
+            strategies['futures_grid'] = FuturesGrid(symbol, **params)
+        except Exception:
+            pass
+    
+    if 'rebalancing' in enabled_strategies:
+        try:
+            params = strategy_params.get('rebalancing', {'target_weights': {}})
+            strategies['rebalancing'] = RebalancingBot(**params)
+        except Exception:
+            pass
+    
+    if 'spot_dca' in enabled_strategies:
+        try:
+            params = strategy_params.get('spot_dca', {'interval_hours': 24, 'amount': 100})
+            strategies['spot_dca'] = SpotDCA(symbol, **params)
+        except Exception:
+            pass
+    
+    if 'funding_arb' in enabled_strategies:
+        try:
+            params = strategy_params.get('funding_arb', {})
+            strategies['funding_arb'] = FundingArbBot(symbol, **params)
+        except Exception:
+            pass
+    
+    return strategies
+
+
+def generate_all_strategy_signals(
+    strategies: dict[str, Any], 
+    data: pd.DataFrame,
+    sentiment: float,
+    macro_score: float,
+    onchain_score: float,
+    book_skew: float,
+    heatmap_ratio: float,
+    model_path: str | None = None
+) -> dict[str, dict[str, Any]]:
+    """Generate signals from all strategies."""
+    signals = {}
+    
+    # Original indicator signal
+    try:
+        sig = generate_signal(data, sentiment, macro_score, onchain_score, book_skew, heatmap_ratio)
+        signals['indicator'] = {'action': sig.action, 'confidence': 0.7}
+    except Exception:
+        signals['indicator'] = {'action': 'HOLD', 'confidence': 0.5}
+    
+    # Technical strategies
+    for name, strategy in strategies.items():
+        try:
+            if isinstance(strategy, dict) and strategy.get('type') == 'technical':
+                action = generate_technical_signal(data, strategy['params'], name)
+                signals[name] = {'action': action, 'confidence': 0.6}
+            elif hasattr(strategy, 'update'):
+                if name == 'ml_simple':
+                    result = strategy.update(data)
+                    if isinstance(result, tuple):
+                        sig, conf, _ = result
+                        action = 'BUY' if sig > 0 else 'SELL' if sig < 0 else 'HOLD'
+                        signals[name] = {'action': action, 'confidence': conf}
+                    else:
+                        signals[name] = {'action': 'HOLD', 'confidence': 0.5}
+                elif hasattr(strategy, 'on_tick'):
+                    # Binance-style bots
+                    price = data['close'].iloc[-1]
+                    orders = strategy.on_tick(price)
+                    if orders and len(orders) > 0:
+                        side = orders[0].get('side', 'HOLD')
+                        action = 'BUY' if side == 'BUY' else 'SELL' if side == 'SELL' else 'HOLD'
+                        signals[name] = {'action': action, 'confidence': 0.6}
+                    else:
+                        signals[name] = {'action': 'HOLD', 'confidence': 0.5}
+                else:
+                    # Try price-based update
+                    price = data['close'].iloc[-1]
+                    if hasattr(strategy, 'update'):
+                        orders = strategy.update(price)
+                        if orders and len(orders) > 0:
+                            side = orders[0][0] if isinstance(orders[0], tuple) else 'HOLD'
+                            action = 'BUY' if side == 'buy' else 'SELL' if side == 'sell' else 'HOLD'
+                            signals[name] = {'action': action, 'confidence': 0.6}
+                        else:
+                            signals[name] = {'action': 'HOLD', 'confidence': 0.5}
+                    else:
+                        signals[name] = {'action': 'HOLD', 'confidence': 0.5}
+            else:
+                signals[name] = {'action': 'HOLD', 'confidence': 0.5}
+        except Exception:
+            signals[name] = {'action': 'HOLD', 'confidence': 0.5}
+    
+    # ML signal if model provided
+    if model_path:
+        try:
+            model = pd.read_pickle(model_path)
+            ml_sig = ml_signal(model, data)
+            signals['ml_model'] = {'action': ml_sig.action, 'confidence': 0.8}
+        except Exception:
+            signals['ml_model'] = {'action': 'HOLD', 'confidence': 0.5}
+    
+    return signals
+
+
+def generate_technical_signal(data: pd.DataFrame, params: dict, strategy_type: str) -> str:
+    """Generate signal from technical indicators."""
+    from .indicators.technical import ichimoku, parabolic_sar, cci, keltner_channels, fibonacci_retracements
+    
+    try:
+        if strategy_type == 'ma_cross' and len(data) >= params['slow']:
+            fast_ma = data['close'].rolling(params['fast']).mean().iloc[-1]
+            slow_ma = data['close'].rolling(params['slow']).mean().iloc[-1]
+            return 'BUY' if fast_ma > slow_ma else 'SELL'
+        
+        elif strategy_type == 'rsi' and len(data) >= params['period']:
+            delta = data['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(params['period']).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(params['period']).mean()
+            rs = gain / loss.replace(0, 1e-10)  # Avoid division by zero
+            rsi = 100 - (100 / (1 + rs))
+            current_rsi = rsi.iloc[-1]
+            
+            if current_rsi < params['oversold']:
+                return 'BUY'
+            elif current_rsi > params['overbought']:
+                return 'SELL'
+        
+        elif strategy_type == 'bb' and len(data) >= params['period']:
+            sma = data['close'].rolling(params['period']).mean()
+            std = data['close'].rolling(params['period']).std()
+            upper = sma + (std * params['std_dev'])
+            lower = sma - (std * params['std_dev'])
+            
+            current_price = data['close'].iloc[-1]
+            if current_price < lower.iloc[-1]:
+                return 'BUY'
+            elif current_price > upper.iloc[-1]:
+                return 'SELL'
+        
+        elif strategy_type == 'macd' and len(data) >= params['slow']:
+            ema_fast = data['close'].ewm(span=params['fast']).mean()
+            ema_slow = data['close'].ewm(span=params['slow']).mean()
+            macd_line = ema_fast - ema_slow
+            signal_line = macd_line.ewm(span=params['signal']).mean()
+            
+            if macd_line.iloc[-1] > signal_line.iloc[-1] and macd_line.iloc[-2] <= signal_line.iloc[-2]:
+                return 'BUY'
+            elif macd_line.iloc[-1] < signal_line.iloc[-1] and macd_line.iloc[-2] >= signal_line.iloc[-2]:
+                return 'SELL'
+        
+        # Add new technical strategies
+        elif strategy_type == 'ichimoku' and {'high', 'low'}.issubset(data.columns) and len(data) >= 52:
+            ichimoku_data = ichimoku(data['high'], data['low'], data['close'])
+            tenkan = ichimoku_data['tenkan']
+            kijun = ichimoku_data['kijun']
+            current_price = data['close'].iloc[-1]
+            
+            if current_price > tenkan and tenkan > kijun:
+                return 'BUY'
+            elif current_price < tenkan and tenkan < kijun:
+                return 'SELL'
+        
+        elif strategy_type == 'psar' and {'high', 'low'}.issubset(data.columns) and len(data) >= 10:
+            psar_value = parabolic_sar(data['high'], data['low'], params.get('step', 0.02), params.get('max_step', 0.2))
+            current_price = data['close'].iloc[-1]
+            
+            if current_price > psar_value:
+                return 'BUY'
+            elif current_price < psar_value:
+                return 'SELL'
+        
+        elif strategy_type == 'cci' and {'high', 'low'}.issubset(data.columns) and len(data) >= 20:
+            cci_value = cci(data['high'], data['low'], data['close'], params.get('period', 20))
+            
+            if cci_value < -100:
+                return 'BUY'
+            elif cci_value > 100:
+                return 'SELL'
+        
+        elif strategy_type == 'keltner' and {'high', 'low'}.issubset(data.columns) and len(data) >= 20:
+            kelt = keltner_channels(data['high'], data['low'], data['close'])
+            current_price = data['close'].iloc[-1]
+            
+            if current_price < kelt['lower']:
+                return 'BUY'
+            elif current_price > kelt['upper']:
+                return 'SELL'
+        
+        elif strategy_type == 'fibonacci' and {'high', 'low'}.issubset(data.columns) and len(data) >= 50:
+            fib = fibonacci_retracements(data['high'], data['low'])
+            current_price = data['close'].iloc[-1]
+            
+            if current_price < fib['level_0.382']:
+                return 'BUY'
+            elif current_price > fib['level_0.618']:
+                return 'SELL'
+    
+    except Exception:
+        pass
+    
+    return 'HOLD'
+
+
+def update_strategy_performance(
+    performance: dict[str, dict], 
+    signals: dict[str, dict], 
+    data: pd.DataFrame
+) -> dict[str, dict]:
+    """Update strategy performance tracking."""
+    current_return = data['close'].pct_change().iloc[-1] if len(data) > 1 else 0.0
+    
+    for name, signal_data in signals.items():
+        if name not in performance:
+            performance[name] = {'returns': [], 'last_signal': 'HOLD', 'confidence': 0.5}
+        
+        # Calculate return based on previous signal
+        prev_signal = performance[name]['last_signal']
+        if prev_signal == 'BUY':
+            strategy_return = current_return
+        elif prev_signal == 'SELL':
+            strategy_return = -current_return
+        else:
+            strategy_return = 0.0
+        
+        performance[name]['returns'].append(strategy_return)
+        performance[name]['last_signal'] = signal_data['action']
+        performance[name]['confidence'] = signal_data['confidence']
+        
+        # Keep only last 100 returns
+        if len(performance[name]['returns']) > 100:
+            performance[name]['returns'] = performance[name]['returns'][-100:]
+    
+    return performance
+
+
+def aggregate_strategy_signals(signals: dict[str, dict], weights: list[float]) -> Any:
+    """Aggregate multiple strategy signals using weights."""
+    from .strategies.indicator_signals import Signal
+    
+    if not signals or not weights:
+        return Signal('HOLD')
+    
+    # Calculate weighted votes
+    buy_weight = 0.0
+    sell_weight = 0.0
+    total_weight = 0.0
+    
+    strategy_names = list(signals.keys())
+    for i, (name, signal_data) in enumerate(signals.items()):
+        if i < len(weights):
+            weight = weights[i] * signal_data['confidence']
+            total_weight += weight
+            
+            if signal_data['action'] == 'BUY':
+                buy_weight += weight
+            elif signal_data['action'] == 'SELL':
+                sell_weight += weight
+    
+    if total_weight == 0:
+        return Signal('HOLD')
+    
+    # Determine final action based on weighted votes
+    buy_ratio = buy_weight / total_weight
+    sell_ratio = sell_weight / total_weight
+    
+    if buy_ratio > 0.6:
+        return Signal('BUY')
+    elif sell_ratio > 0.6:
+        return Signal('SELL')
+    else:
+        return Signal('HOLD')
 
 
 @dataclass
@@ -234,6 +677,16 @@ async def _run(
             state = json.loads(state_file.read_text())
         except json.JSONDecodeError:
             state = {}
+    
+    # Initialize multi-strategy system
+    strategies = initialize_all_strategies(symbol, config_path)
+    
+    # Load strategy performance history
+    strategy_performance = state.get("strategy_performance", {})
+    for name in strategies.keys():
+        if name not in strategy_performance:
+            strategy_performance[name] = {"returns": [], "last_signal": "HOLD", "confidence": 0.5}
+    
     latencies = deque(state.get("latencies", []), maxlen=120)
     latency_breach = state.get("latency_breach", 0)
     peak_equity = state.get("peak_equity", account_balance)
@@ -410,27 +863,105 @@ async def _run(
         else:
             macro_score = compute_macro_score(dxy, rates, liquidity)
 
-    sig = generate_signal(
-        data,
-        sentiment,
-        macro_score,
-        onchain_score,
-        book_skew,
-        heatmap_ratio,
+    # Generate signals from all strategies
+    strategy_signals = generate_all_strategy_signals(
+        strategies, data, sentiment, macro_score, onchain_score, 
+        book_skew, heatmap_ratio, model_path
     )
-
-    if model_path:
-        try:
-            model = pd.read_pickle(model_path)
-            ml_sig = ml_signal(model, data)
-            if ml_sig.action != sig.action:
-                # Require agreement for trade
-                sig.action = "HOLD"
-        except FileNotFoundError:
-            pass
+    
+    # Update strategy performance tracking
+    strategy_performance = update_strategy_performance(
+        strategy_performance, strategy_signals, data
+    )
+    
+    # Initialize allocator with correct number of strategies (including indicator signal)
+    total_strategies = len(strategy_signals)
+    if 'allocator' not in locals() or allocator.n_strategies != total_strategies:
+        allocator = HedgeAllocator(total_strategies)
+    
+    # Calculate strategy weights using allocator
+    returns = [perf["returns"][-1] if perf["returns"] else 0.0 
+              for perf in strategy_performance.values()]
+    
+    # Ensure returns list matches allocator size
+    if len(returns) != allocator.n_strategies:
+        returns = returns[:allocator.n_strategies] + [0.0] * max(0, allocator.n_strategies - len(returns))
+    
+    allocator.update(returns)
+    
+    # Aggregate signals using weighted voting
+    sig = aggregate_strategy_signals(strategy_signals, allocator.weights)
+    
+    # Log strategy performance
+    log_json(logger, "strategy_signals", 
+             signals={name: data['action'] for name, data in strategy_signals.items()},
+             weights=allocator.weights[:len(strategy_signals)],
+             final_action=sig.action)
 
     price = data["close"].iloc[-1]
     atr = compute_atr(data).iloc[-1]
+    
+    # Calculate additional features
+    twap = compute_twap(data).iloc[-1] if len(data) > 1 else price
+    
+    # Exchange net flow (if inflow/outflow data available)
+    exchange_flow = 0.0
+    if {'inflows', 'outflows'}.issubset(data.columns):
+        exchange_flow = compute_exchange_netflow(data).iloc[-1]
+    
+    # Cumulative delta (if buy/sell volume data available)
+    cumulative_delta = 0.0
+    if {'buy_vol', 'sell_vol'}.issubset(data.columns):
+        cumulative_delta = compute_cumulative_delta(data).iloc[-1]
+    
+    # Simple moving average for comparison
+    sma_20 = compute_moving_average(data['close'], 20).iloc[-1] if len(data) >= 20 else price
+    
+    # Additional technical indicators for enhanced signal generation
+    if {'high', 'low'}.issubset(data.columns) and len(data) >= 52:
+        ichimoku_data = compute_ichimoku(data)
+        tenkan = ichimoku_data['tenkan'].iloc[-1]
+        kijun = ichimoku_data['kijun'].iloc[-1]
+        
+        psar_value = compute_parabolic_sar(data).iloc[-1]
+        
+        keltner_data = compute_keltner_channels(data)
+        kelt_upper = keltner_data['upper'].iloc[-1]
+        kelt_lower = keltner_data['lower'].iloc[-1]
+        
+        cci_value = compute_cci(data).iloc[-1]
+        
+        fib_data = compute_fibonacci_retracements(data)
+        fib_618 = fib_data['level_0.618'].iloc[-1]
+    else:
+        tenkan = kijun = psar_value = kelt_upper = kelt_lower = cci_value = fib_618 = 0.0
+    
+    # Microstructure indicators
+    microprice = 0.0
+    iceberg_detected = False
+    if order_book:
+        try:
+            microprice = compute_microprice(order_book)
+            iceberg_detected = detect_iceberg(order_book)
+        except Exception:
+            pass
+    
+    # Flow toxicity and entropy regime (if trade data available)
+    toxicity = 0.0
+    entropy_regime = "normal"
+    if len(data) > 20:
+        try:
+            # Use price changes as proxy for trade flow
+            price_changes = data['close'].diff().dropna().tolist()
+            recent_changes = price_changes[-20:] if len(price_changes) >= 20 else price_changes
+            directions = [1 if x > 0 else 0 for x in recent_changes]
+            entropy_regime = detect_entropy_regime(directions)
+            
+            # Estimate toxicity from volatility
+            if len(price_changes) > 0:
+                toxicity = abs(sum(price_changes[-10:])) / len(price_changes[-10:]) if len(price_changes) >= 10 else 0.0
+        except Exception:
+            pass
 
     # Estimate recent volatility as std of returns
     volatility = float(data["close"].pct_change().rolling(10).std().iloc[-1])
@@ -488,6 +1019,24 @@ async def _run(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "leverage": leverage,
         "var": var,
+        "indicators": {
+            "atr": float(atr),
+            "twap": float(twap),
+            "exchange_flow": float(exchange_flow),
+            "cumulative_delta": float(cumulative_delta),
+            "sma_20": float(sma_20),
+            "tenkan": float(tenkan),
+            "kijun": float(kijun),
+            "psar": float(psar_value),
+            "kelt_upper": float(kelt_upper),
+            "kelt_lower": float(kelt_lower),
+            "cci": float(cci_value),
+            "fib_618": float(fib_618),
+            "microprice": float(microprice),
+            "iceberg_detected": bool(iceberg_detected),
+            "toxicity": float(toxicity),
+            "entropy_regime": str(entropy_regime),
+        },
     }
     position_value = volume * price
     edge = abs((take_profit - price) / price) if take_profit else 0.0
@@ -505,30 +1054,32 @@ async def _run(
         log_json(logger, "latency_slo_triggered", stage="soft", p95=p95_latency)
         sig.action = "HOLD"
     if live and exchange and sig.action != "HOLD" and volume > 0:
-        if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
-            client_id = uuid.uuid4().hex
-            try:
-                order_resp = await place_order(
-                    ccxt_symbol, sig.action, volume, client_id=client_id
-                )
-                open_orders[client_id] = {
-                    "symbol": ccxt_symbol,
-                    "side": sig.action,
-                    "volume": volume,
-                }
-                await store.record_order(
-                    client_id,
-                    client_id,
-                    ccxt_symbol,
-                    sig.action,
-                    volume,
-                    order_resp.get("price"),
-                    order_resp.get("status", "open"),
-                    time.time(),
-                )
-                payload["client_order_id"] = client_id
-            except Exception as exc:
-                log_json(logger, "order_failed", error=str(exc))
+        # Apply fee/slippage gating before order submission
+        if fee_slippage_gate(price, price, fee_rate=params.fee_rate, slippage_rate=params.slippage):
+            if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
+                client_id = uuid.uuid4().hex
+                try:
+                    order_resp = await place_order(
+                        ccxt_symbol, sig.action, volume, client_id=client_id
+                    )
+                    open_orders[client_id] = {
+                        "symbol": ccxt_symbol,
+                        "side": sig.action,
+                        "volume": volume,
+                    }
+                    await store.record_order(
+                        client_id,
+                        client_id,
+                        ccxt_symbol,
+                        sig.action,
+                        volume,
+                        order_resp.get("price"),
+                        order_resp.get("status", "open"),
+                        time.time(),
+                    )
+                    payload["client_order_id"] = client_id
+                except Exception as exc:
+                    log_json(logger, "order_failed", error=str(exc))
         else:
             log_json(logger, "risk_check_failed", symbol=symbol, position_value=position_value)
 
@@ -558,11 +1109,18 @@ async def _run(
         var=var,
     )
 
-    state["peak_equity"] = max(peak_equity, account_balance)
-    state["equity"] = account_balance
+    # Apply capital compounding
+    daily_return = (account_balance - state.get("prev_balance", account_balance)) / account_balance if account_balance > 0 else 0.0
+    compounded_balance = compound_capital(account_balance, daily_return)
+    
+    state["peak_equity"] = max(peak_equity, compounded_balance)
+    state["equity"] = compounded_balance
+    state["prev_balance"] = account_balance
     state["latencies"] = list(latencies)
     state["latency_breach"] = latency_breach
-    state_file.write_text(json.dumps(state))
+    state["strategy_performance"] = strategy_performance
+    state["allocator_weights"] = allocator.weights
+    state_file.write_text(json.dumps(state, default=str))
     if store and owns_store:
         await store.close()
 

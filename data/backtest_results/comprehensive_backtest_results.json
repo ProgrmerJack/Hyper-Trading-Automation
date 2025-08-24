@@ -1,0 +1,122 @@
+{
+  "MA_5_20": {
+    "total_return": 3.4495796839493676e+31,
+    "sharpe_ratio": 16.731184583799813,
+    "max_drawdown": 18.40825976407433,
+    "win_rate": 100.0,
+    "num_trades": 126,
+    "final_equity": 3.449579683949368e+33
+  },
+  "MA_10_30": {
+    "total_return": 2.0016327429069353e+18,
+    "sharpe_ratio": 12.324678737451803,
+    "max_drawdown": 23.155380541304723,
+    "win_rate": 100.0,
+    "num_trades": 68,
+    "final_equity": 2.001632742906935e+20
+  },
+  "MA_20_50": {
+    "total_return": 5555890386219.322,
+    "sharpe_ratio": 9.834985208210355,
+    "max_drawdown": 26.194154069856506,
+    "win_rate": 100.0,
+    "num_trades": 44,
+    "final_equity": 555589038631932.2
+  },
+  "RSI_14": {
+    "total_return": 372689065510.199,
+    "sharpe_ratio": 8.133669252730611,
+    "max_drawdown": 80.81938343913473,
+    "win_rate": 97.61904761904762,
+    "num_trades": 42,
+    "final_equity": 37268906561019.9
+  },
+  "RSI_21": {
+    "total_return": 17436.098842369967,
+    "sharpe_ratio": 1.7809966086113183,
+    "max_drawdown": 139.86773588081104,
+    "win_rate": 100.0,
+    "num_trades": 9,
+    "final_equity": 1753609.8842369965
+  },
+  "BB_20_2": {
+    "total_return": 482432131904.1234,
+    "sharpe_ratio": 6.82046964673328,
+    "max_drawdown": 87.02929462809867,
+    "win_rate": 97.61904761904762,
+    "num_trades": 42,
+    "final_equity": 48243213200412.34
+  },
+  "BB_20_1.5": {
+    "total_return": 1784719608608001.2,
+    "sharpe_ratio": 7.348134986056496,
+    "max_drawdown": 93.37839078997489,
+    "win_rate": 98.27586206896551,
+    "num_trades": 58,
+    "final_equity": 1.784719608608101e+17
+  },
+  "MACD_12_26_9": {
+    "total_return": 4.786206918859426e+40,
+    "sharpe_ratio": 19.25379018222685,
+    "max_drawdown": 16.253635337368692,
+    "win_rate": 100.0,
+    "num_trades": 166,
+    "final_equity": 4.786206918859426e+42
+  },
+  "MeanRev_20_2": {
+    "total_return": 482432131904.1234,
+    "sharpe_ratio": 6.82046964673328,
+    "max_drawdown": 87.02929462809867,
+    "win_rate": 97.61904761904762,
+    "num_trades": 42,
+    "final_equity": 48243213200412.34
+  },
+  "MeanRev_10_1.5": {
+    "total_return": 6.795101183636513e+28,
+    "sharpe_ratio": 15.009819811438172,
+    "max_drawdown": 62.09282626913423,
+    "win_rate": 99.13793103448276,
+    "num_trades": 116,
+    "final_equity": 6.795101183636513e+30
+  },
+  "Momentum_10": {
+    "total_return": 1.1403229923042481e+20,
+    "sharpe_ratio": 13.020936924436441,
+    "max_drawdown": 22.158893231914856,
+    "win_rate": 100.0,
+    "num_trades": 77,
+    "final_equity": 1.140322992304248e+22
+  },
+  "Momentum_20": {
+    "total_return": 7518871897872383.0,
+    "sharpe_ratio": 11.211958904243577,
+    "max_drawdown": 27.763369558695544,
+    "win_rate": 100.0,
+    "num_trades": 58,
+    "final_equity": 7.518871897872483e+17
+  },
+  "Breakout_20": {
+    "total_return": 1039280319840743.4,
+    "sharpe_ratio": 10.867862825939282,
+    "max_drawdown": 23.180401422934636,
+    "win_rate": 100.0,
+    "num_trades": 54,
+    "final_equity": 1.0392803198408434e+17
+  },
+  "Breakout_50": {
+    "total_return": 17039457.250878297,
+    "sharpe_ratio": 6.660375762051321,
+    "max_drawdown": 38.83353804088732,
+    "win_rate": 100.0,
+    "num_trades": 20,
+    "final_equity": 1703955725.0878296
+  },
+  "VWAP_20": {
+    "total_return": 1.5655787665627798e+54,
+    "sharpe_ratio": 22.732898603627785,
+    "max_drawdown": 12.144315977505704,
+    "win_rate": 100.0,
+    "num_trades": 224,
+    "final_equity": 1.5655787665627798e+56
+  }
+}

@@ -16,10 +16,16 @@ __all__ = [
     "backtester",
     "utils",
     "bot",
+    "allocators",
+    "oms",
 ]
 
 
 def __getattr__(name: str) -> Any:  # pragma: no cover - thin wrapper
+    # Validate name is in allowed exports to prevent unauthorized access
+    if name not in __all__:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    
     if name == "run":
         return import_module("hypertrader.bot").run
     if name == "TradingOrchestrator":
@@ -29,5 +35,10 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - thin wrapper
     if name in {"train_model", "ml_signal", "cross_validate_model"}:
         mod = import_module("hypertrader.strategies.ml_strategy")
         return getattr(mod, name)
-    raise AttributeError(name)
+    
+    # For module imports, return the module itself
+    if name in {"connectors", "indicators", "strategies", "backtester", "utils", "bot", "allocators", "oms"}:
+        return import_module(f"hypertrader.{name}")
+    
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 

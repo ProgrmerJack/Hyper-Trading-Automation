@@ -25,6 +25,7 @@ libraries such as `ccxt` or exchange‑specific WebSocket APIs.  See
 instructions.
 """
 
-from .exchange import ExchangeConnector, SimulationConnector  # noqa: F401
+from .exchange import ExchangeConnector, SimulationConnector, Order
+from .advanced import AdvancedSimulationConnector
 
-__all__ = ["ExchangeConnector", "SimulationConnector"]
+__all__ = ["ExchangeConnector", "SimulationConnector", "Order", "AdvancedSimulationConnector"]

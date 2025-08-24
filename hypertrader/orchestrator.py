@@ -83,7 +83,9 @@ class TradingOrchestrator:
                             # heartbeat missed -> cancel outstanding orders
                             try:
                                 await cancel_all()
-                            except Exception:
+                            except Exception as e:
+                                import logging
+                                logging.warning(f"Order cancellation failed: {e}")
                                 pass
                             continue
                         try:
