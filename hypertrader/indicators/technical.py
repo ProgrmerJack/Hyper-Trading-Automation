@@ -70,6 +70,7 @@ from hypertrader.utils.features import (
     compute_cumulative_delta as _cumulative_delta,
     compute_exchange_netflow as _exchange_netflow,
     compute_moving_average as _sma_func,
+    compute_adx as _adx,
 )
 
 
@@ -419,6 +420,23 @@ def fibonacci_retracements(high: Iterable[float], low: Iterable[float], window: 
         return {"level_0.236": 0.0, "level_0.382": 0.0, "level_0.5": 0.0, "level_0.618": 0.0, "level_0.786": 0.0}
 
 
+def adx(high: Iterable[float], low: Iterable[float], close: Iterable[float], period: int = 14) -> float:
+    """Compute Average Directional Index (ADX).
+    
+    Returns
+    -------
+    float
+        Latest ADX value
+    """
+    try:
+        import pandas as pd
+        df = pd.DataFrame({"high": list(high), "low": list(low), "close": list(close)})
+        result = _adx(df, period)
+        return float(result.iloc[-1])
+    except Exception:
+        return 0.0
+
+
 def twap(close: Iterable[float]) -> float:
     """Compute Time Weighted Average Price (TWAP).
     
@@ -472,7 +490,7 @@ def exchange_netflow(inflows: Iterable[float], outflows: Iterable[float]) -> flo
 
 __all__ = [
     "sma",
-    "ema",
+    "ema", 
     "rsi",
     "macd",
     "atr",
@@ -490,4 +508,5 @@ __all__ = [
     "twap",
     "cumulative_delta",
     "exchange_netflow",
+    "adx",
 ]
