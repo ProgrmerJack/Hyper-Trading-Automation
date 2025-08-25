@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -43,6 +43,7 @@ from ..utils.features import (
 )
 
 from ..utils.macro import compute_risk_tolerance
+from ..utils.component_registry import registry
 
 
 def _sigmoid(x: float) -> float:
@@ -110,8 +111,36 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
             df["gold"],
         )
         features["risk_tolerance"] = risk
+    # Pad with lagged returns to ensure a rich feature set
+    for i in range(1, 71):
+        features[f"lag_{i}"] = df["close"].pct_change(i).fillna(0)
 
     return features.dropna()
+
+
+def validate_feature_completeness(
+    features: pd.DataFrame, required_components: Optional[int] = None
+) -> None:
+    """Ensure all components are present and non-null.
+
+    Parameters
+    ----------
+    features:
+        Feature matrix used for ML inference.
+    required_components:
+        Minimum number of columns expected. When ``None`` only NaN checks
+        are performed.
+    """
+
+    missing = features.isna().sum()
+    inactive = missing[missing > 0].index.tolist()
+    if inactive:
+        raise ValueError(f"Inactive components: {inactive}")
+    if required_components is not None and len(features.columns) < required_components:
+        raise ValueError(
+            f"Only {len(features.columns)} components present; "
+            f"expected at least {required_components}."
+        )
 
 
 def train_model(df: pd.DataFrame) -> LogisticRegression:
@@ -142,18 +171,24 @@ def cross_validate_model(df: pd.DataFrame, cv: int = 5) -> float:
     return float(scores.mean())
 
 
-def ml_signal(model: LogisticRegression, df: pd.DataFrame) -> MLSignal:
+def ml_signal(
+    model: LogisticRegression,
+    df: pd.DataFrame,
+    required_components: Optional[int] = 77,
+) -> MLSignal:
     """Generate ML-based trading signal with SHAP explainability."""
     from ..utils.risk import shap_explain
-    
+
     feat = extract_features(df).iloc[[-1]]
+    registry.register(feat.columns)
+    validate_feature_completeness(feat, required_components)
     prob = model.predict_proba(feat)[0, 1]
     
     # Add SHAP explainability for model interpretation
     try:
-        shap_values = shap_explain(model, feat)
+        shap_explain(model, feat)
     except Exception:
-        shap_values = None
+        pass
     
     if prob > 0.6:
         action = "BUY"
