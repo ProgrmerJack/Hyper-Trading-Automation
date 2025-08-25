@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+import pytest
+
 from hypertrader.strategies.ml_strategy import (
     train_model,
     ml_signal,
@@ -48,6 +50,12 @@ def test_extract_features_contains_new_indicators():
     assert 0 <= score <= 1
 
 
+def test_extract_features_component_count():
+    df = _sample_df()
+    feat = extract_features(df)
+    assert feat.shape[1] >= 77
+
+
 def test_extract_features_with_risk_tolerance():
     df = pd.DataFrame(
         {
@@ -66,3 +74,14 @@ def test_extract_features_with_risk_tolerance():
     )
     feat = extract_features(df)
     assert "risk_tolerance" in feat.columns
+
+
+def test_ml_signal_component_validation():
+    df = _sample_df()
+    model = train_model(df)
+    # Should pass when required components matches feature set
+    sig = ml_signal(model, df, required_components=77)
+    assert sig.action in {"BUY", "SELL", "HOLD"}
+    # Requiring too many components should raise
+    with pytest.raises(ValueError):
+        ml_signal(model, df, required_components=200)
