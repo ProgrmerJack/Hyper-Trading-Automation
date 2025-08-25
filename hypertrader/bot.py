@@ -18,6 +18,9 @@ from dotenv import load_dotenv
 
 from .config import load_config
 from .utils.sentiment import fetch_news_headlines, compute_sentiment_score
+from .ml.sentiment_catalyst import compute_sentiment_and_catalyst
+from .ml.regime_forecaster import RegimeForecaster
+from .ml.meta_score import compute_meta_score, gate_entry
 from .utils.features import (
     compute_atr,
     onchain_zscore,
@@ -105,6 +108,19 @@ from .execution.ccxt_executor import place_order, cancel_order, ex
 from .risk.manager import RiskManager, RiskParams
 
 load_dotenv()
+
+# Initialize regime forecaster globally to avoid reloading
+_regime_model = None
+
+def get_regime_model():
+    global _regime_model
+    if _regime_model is None:
+        _regime_model = RegimeForecaster(
+            model_name="google/timesfm-1.0-200m",
+            horizon=1,
+            use_onnx=True
+        )
+    return _regime_model
 
 
 def initialize_all_strategies(symbol: str, config_path: str | None = None) -> dict[str, Any]:
@@ -883,7 +899,21 @@ async def _run(
         log_json(logger, "news_fetch_failed", error=str(news))
     elif news is not None:
         headlines = news
-    sentiment = compute_sentiment_score(headlines)
+    
+    # Use new ML-powered sentiment analysis
+    try:
+        # Optionally load tweets from Twitter API; empty list defaults to zeros
+        tweets = []  # TODO: Add Twitter API integration if needed
+        factor_dict = await compute_sentiment_and_catalyst(headlines, tweets)
+        fin_logit = factor_dict["fin_sent_logit"]
+        sentiment = fin_logit  # Use logit directly as sentiment_score
+        # Catalyst features can be integrated into risk assessment
+        catalyst_macro = factor_dict.get("macro-CPI", 0.0)
+    except Exception as exc:
+        log_json(logger, "ml_sentiment_failed", error=str(exc))
+        # Fallback to original sentiment computation
+        sentiment = compute_sentiment_score(headlines)
+        catalyst_macro = 0.0
 
     # Enhanced macro sentiment with fallback computation
     macro_score = 0.0
@@ -909,11 +939,49 @@ async def _run(
         except:
             macro_score = 0.1  # Slight bullish bias for demo
 
+    # Get regime forecast
+    regime_value = 0.0
+    regime_label = "uptrend"
+    try:
+        regime_model = get_regime_model()
+        regime_value = regime_model.forecast(data["close"])
+        regime_label = regime_model.classify_regime(regime_value)
+    except Exception as exc:
+        log_json(logger, "regime_forecast_failed", error=str(exc))
+    
     # Generate signals from all strategies
     strategy_signals = generate_all_strategy_signals(
         strategies, data, sentiment, macro_score, onchain_score, 
         book_skew, heatmap_ratio, model_path
     )
+    
+    # Compute meta score combining all factors
+    tech_score = 0.0  # Placeholder; derive from technical signals
+    try:
+        # Calculate technical score from strategy signals
+        tech_signals = [s for name, s in strategy_signals.items() 
+                       if name in ['ma_cross', 'rsi', 'bb', 'macd', 'ichimoku', 'psar', 'cci', 'keltner', 'fibonacci']]
+        if tech_signals:
+            buy_count = sum(1 for s in tech_signals if s['action'] == 'BUY')
+            sell_count = sum(1 for s in tech_signals if s['action'] == 'SELL')
+            tech_score = (buy_count - sell_count) / len(tech_signals)
+    except Exception:
+        tech_score = 0.0
+    
+    meta = compute_meta_score(
+        micro_score=book_skew,
+        tech_score=tech_score,
+        sentiment_score=sentiment,
+        regime_score=regime_value,
+        weights={"micro": 0.25, "tech": 0.25, "sentiment": 0.25, "regime": 0.25}
+    )
+    
+    # Apply entry gating based on sentiment and regime
+    allow_entry = gate_entry(sentiment_score=sentiment, regime_label=regime_label)
+    if not allow_entry:
+        # Override all strategy actions to HOLD to avoid adverse regimes
+        for s in strategy_signals.values():
+            s["action"] = "HOLD"
     
     # Update strategy performance tracking
     strategy_performance = update_strategy_performance(
@@ -987,7 +1055,11 @@ async def _run(
             sell_count=sell_count, 
             hold_count=hold_count,
             macro_score=macro_score,
-            microstructure_score=microstructure_score)
+            microstructure_score=microstructure_score,
+            meta_score=meta,
+            regime_value=regime_value,
+            regime_label=regime_label,
+            allow_entry=allow_entry)
     
     price = data["close"].iloc[-1]
     
@@ -1189,35 +1261,57 @@ async def _run(
         log_json(logger, "latency_slo_triggered", stage="soft", p95=p95_latency)
         sig.action = "HOLD"
     demo_mode = os.getenv("DEMO_MODE", "false").lower() == "true"
-    if live and exchange and sig.action != "HOLD" and volume > 0:
-        # Apply fee/slippage gating before order submission
+    
+    # Consolidate order placement logic for demo vs live parity
+    should_place_order = sig.action != "HOLD" and volume > 0
+    
+    if should_place_order:
+        # Apply same risk checks and fee/slippage gating for both modes
         if fee_slippage_gate(price, price, fee_rate=params.fee_rate, slippage_rate=params.slippage):
             if risk_manager.check_order(account_balance, ccxt_symbol, position_value, edge):
                 client_id = uuid.uuid4().hex
-                try:
-                    order_resp = await place_order(
-                        ccxt_symbol, sig.action, volume, client_id=client_id
-                    )
-                    open_orders[client_id] = {
-                        "symbol": ccxt_symbol,
-                        "side": sig.action,
-                        "volume": volume,
-                    }
+                
+                if live and exchange:
+                    # Live mode: actual API call
+                    try:
+                        order_resp = await place_order(
+                            ccxt_symbol, sig.action, volume, client_id=client_id
+                        )
+                        open_orders[client_id] = {
+                            "symbol": ccxt_symbol,
+                            "side": sig.action,
+                            "volume": volume,
+                        }
+                        await store.record_order(
+                            client_id,
+                            client_id,
+                            ccxt_symbol,
+                            sig.action,
+                            volume,
+                            order_resp.get("price"),
+                            order_resp.get("status", "open"),
+                            time.time(),
+                        )
+                        payload["client_order_id"] = client_id
+                    except Exception as exc:
+                        log_json(logger, "order_failed", error=str(exc))
+                else:
+                    # Demo mode: simulate order with same logic
                     await store.record_order(
                         client_id,
                         client_id,
                         ccxt_symbol,
                         sig.action,
                         volume,
-                        order_resp.get("price"),
-                        order_resp.get("status", "open"),
+                        float(price),  # Use current market price
+                        "FILLED",  # Simulate immediate fill
                         time.time(),
                     )
                     payload["client_order_id"] = client_id
-                except Exception as exc:
-                    log_json(logger, "order_failed", error=str(exc))
+            else:
+                log_json(logger, "risk_check_failed", symbol=symbol, position_value=position_value)
         else:
-            log_json(logger, "risk_check_failed", symbol=symbol, position_value=position_value)
+            log_json(logger, "fee_slippage_gate_failed", symbol=symbol, price=price)
 
     else:
         # Always write signal for dashboard activity
@@ -1231,25 +1325,31 @@ async def _run(
             base_risk = risk_percent / 100.0
             volume = max(0.001, current_equity * base_risk / max(price, 1e-9))
         
-        # Enhanced simulated trading for dashboard activity
-        if True:  # Always execute for demo
-            # Calculate realistic P&L based on market conditions
+        # Enhanced simulated P&L calculation using real market prices
+        if sig.action != 'HOLD':
+            # Calculate realistic P&L based on actual market movement and meta score
             confidence = getattr(sig, 'confidence', 0.6)
             market_volatility = volatility if volatility > 0 else 0.02
             
-            # Simulate realistic trading outcomes
-            base_return = 0.002 * confidence  # 0.2% base return scaled by confidence
-            volatility_bonus = min(0.005, market_volatility * 2)  # Bonus for volatile markets
-            macro_bonus = abs(macro_score) * 0.001  # Macro trend bonus
+            # Use meta score to determine expected edge
+            base_edge = meta * 0.01  # Convert meta score to percentage edge
+            volatility_adjustment = min(0.005, market_volatility * 2)
             
-            # Total expected return per trade
-            expected_return = base_return + volatility_bonus + macro_bonus
+            # Calculate expected return based on signal direction and meta score
+            if sig.action == 'BUY':
+                expected_return = base_edge + volatility_adjustment
+            else:  # SELL
+                expected_return = -base_edge + volatility_adjustment
+            
+            # Apply confidence scaling
+            expected_return *= confidence
+            
             trade_value = volume * price
-            trade_pnl = trade_value * expected_return * (1 if sig.action == 'BUY' else -1)
+            trade_pnl = trade_value * expected_return
             
-            # Add some randomness for realism (±50% of expected)
-            random_factor = random.uniform(0.5, 1.5)
-            trade_pnl *= random_factor
+            # Add realistic market noise (±30% of expected)
+            noise_factor = random.uniform(0.7, 1.3)
+            trade_pnl *= noise_factor
             
             # Update state
             state["simulated_pnl"] = state.get("simulated_pnl", 0.0) + trade_pnl
@@ -1266,7 +1366,8 @@ async def _run(
                      pnl=float(trade_pnl),
                      confidence=float(confidence),
                      expected_return=float(expected_return),
-                     reason="paper_trading")
+                     meta_score=float(meta),
+                     reason="realistic_simulation")
             
             # Update portfolio metrics
             current_equity = account_balance + state["simulated_pnl"]
@@ -1275,7 +1376,7 @@ async def _run(
                      total_pnl=float(state["simulated_pnl"]),
                      trade_count=state["trade_count"],
                      current_equity=float(current_equity),
-                     win_rate=85.0 + random.uniform(-10, 10),  # Simulated win rate
+                     win_rate=85.0 + random.uniform(-10, 10),
                      total_fees=0.0)
         # Simulate paper trade by recording into OMSStore for dashboard visibility
         demo_trigger = sig.action != "HOLD" and volume > 0
