@@ -14,7 +14,6 @@ from .feeds.exchange_ws import ExchangeWebSocketFeed
 from .feeds.private_ws import PrivateWebSocketFeed
 from .data.fetch_data import stream_ohlcv
 from .data.oms_store import OMSStore
-from .execution.ccxt_executor import cancel_all, ex
 
 
 @dataclass
@@ -58,31 +57,51 @@ class TradingOrchestrator:
         self.config["store"] = store
         user_task = None
         if self.config.get("live") and exchange:
-            api_key = getattr(ex, "apiKey", None)
-            api_secret = getattr(ex, "secret", None)
+            try:
+                from .execution.ccxt_executor import ex as _ex
+                api_key = str(getattr(_ex, "apiKey", "") or "")
+                api_secret = str(getattr(_ex, "secret", "") or "")
+            except Exception:
+                api_key = ""
+                api_secret = ""
             user_feed = PrivateWebSocketFeed(exchange, store, api_key, api_secret)
             user_task = asyncio.create_task(user_feed.run())
 
         try:
             if self.use_websocket and isinstance(symbol, str) and exchange:
-                ws_symbol = symbol
-                ccxt_symbol = symbol.replace("-", "/") if isinstance(symbol, str) else symbol
+                # Normalize symbols per venue
                 if exchange.lower() == "binance":
-                    ws_symbol = symbol.replace("-", "").replace("/", "").lower()
+                    base, _, quote = symbol.replace("/", "-").partition("-")
+                    quote = "USDT"  # map USD-like to USDT on Binance
+                    ccxt_symbol = f"{base}/{quote}"
+                    ws_symbol = f"{base}{quote}".lower()
                 elif exchange.lower() == "bybit":
-                    ws_symbol = symbol.replace("/", "").replace("-", "").upper()
+                    base, _, quote = symbol.replace("/", "-").partition("-")
+                    quote = quote or "USDT"
+                    ccxt_symbol = f"{base}/{quote}"
+                    ws_symbol = f"{base}{quote}".upper()
+                else:
+                    ccxt_symbol = symbol.replace("-", "/")
+                    ws_symbol = symbol.replace("-", "").replace("/", "")
                 feed = ExchangeWebSocketFeed(exchange, ws_symbol)
                 candle_queue: asyncio.Queue[list[float]] = asyncio.Queue()
-                candle_task = asyncio.create_task(
-                    stream_ohlcv(ccxt_symbol, exchange_name=exchange, queue=candle_queue)
-                )
+                
+                async def _pump_candles() -> None:
+                    async for _ in stream_ohlcv(
+                        ccxt_symbol, exchange_name=exchange, queue=candle_queue
+                    ):
+                        # stream_ohlcv already enqueues, we just drive the generator
+                        await asyncio.sleep(0)
+
+                candle_task = asyncio.create_task(_pump_candles())
                 candles: list[list[float]] = []
                 try:
                     async for msg in feed.stream():
                         if msg is None:
                             # heartbeat missed -> cancel outstanding orders
                             try:
-                                await cancel_all()
+                                from .execution.ccxt_executor import cancel_all as _cancel_all
+                                await _cancel_all()
                             except Exception as e:
                                 import logging
                                 logging.warning(f"Order cancellation failed: {e}")
@@ -94,7 +113,7 @@ class TradingOrchestrator:
                             continue
                         candles.append(candle)
                         candles = candles[-1000:]
-                        df = pd.DataFrame(
+                        df = pd.DataFrame.from_records(
                             candles,
                             columns=["timestamp", "open", "high", "low", "close", "volume"],
                         )

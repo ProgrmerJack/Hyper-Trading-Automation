@@ -266,34 +266,51 @@ def compute_anchored_vwap(df: pd.DataFrame, anchor: str = 'high') -> pd.Series:
     return anchored
 
 
-def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    """Compute Average Directional Index (ADX)."""
-    if not {"high", "low", "close"}.issubset(df.columns):
-        raise ValueError("DataFrame must contain high, low and close columns")
+def compute_adx(
+    high_or_df: pd.Series | pd.DataFrame,
+    low: pd.Series | None = None,
+    close: pd.Series | None = None,
+    period: int = 14,
+) -> pd.Series:
+    """Compute Average Directional Index (ADX).
 
-    up_move = df["high"].diff()
-    down_move = df["low"].shift() - df["low"]
-    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+    Accepts either a DataFrame with ``high``, ``low`` and ``close`` columns or
+    separate ``high``, ``low`` and ``close`` Series.
+    """
+    if isinstance(high_or_df, pd.DataFrame):
+        df = high_or_df
+        if not {"high", "low", "close"}.issubset(df.columns):
+            raise ValueError("DataFrame must contain high, low and close columns")
+        high = df["high"].astype(float)
+        low = df["low"].astype(float)
+        close = df["close"].astype(float)
+    else:
+        if low is None or close is None:
+            raise TypeError("compute_adx() missing required series: low, close")
+        high = high_or_df.astype(float)
+        low = low.astype(float)
+        close = close.astype(float)
 
-    tr = pd.concat(
-        [
-            df["high"] - df["low"],
-            (df["high"] - df["close"].shift()).abs(),
-            (df["low"] - df["close"].shift()).abs(),
-        ],
-        axis=1,
-    ).max(axis=1)
+    tr1 = high - low
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
 
-    atr = tr.rolling(window=period).mean()
-    # Preserve the original index so calculations align with ``atr`` even when
-    # ``df`` uses a DatetimeIndex.  Without specifying the index, pandas would
-    # align on the default RangeIndex leading to all-NaN results for
-    # non-integer indices.
-    plus_di = 100 * pd.Series(plus_dm, index=df.index).rolling(window=period).mean() / atr
-    minus_di = 100 * pd.Series(minus_dm, index=df.index).rolling(window=period).mean() / atr
-    dx = (plus_di - minus_di).abs() / (plus_di + minus_di) * 100
-    adx = dx.rolling(window=period).mean()
+    dm_plus = high - high.shift(1)
+    dm_minus = low.shift(1) - low
+
+    dm_plus = dm_plus.where((dm_plus > dm_minus) & (dm_plus > 0), 0)
+    dm_minus = dm_minus.where((dm_minus > dm_plus) & (dm_minus > 0), 0)
+
+    tr_smooth = tr.rolling(period).mean()
+    dm_plus_smooth = dm_plus.rolling(period).mean()
+    dm_minus_smooth = dm_minus.rolling(period).mean()
+
+    di_plus = 100 * (dm_plus_smooth / tr_smooth)
+    di_minus = 100 * (dm_minus_smooth / tr_smooth)
+
+    dx = 100 * (di_plus - di_minus).abs() / (di_plus + di_minus)
+    adx = dx.rolling(period).mean()
     return adx
 
 

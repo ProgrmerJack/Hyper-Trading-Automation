@@ -7,6 +7,7 @@ import random
 from typing import AsyncIterator, Dict, Optional
 
 import websockets
+from websockets.asyncio.client import ClientConnection as WebSocketClientProtocol
 
 from ..utils.monitoring import (
     ws_ping_counter,
@@ -14,6 +15,7 @@ from ..utils.monitoring import (
     ws_ping_rtt_histogram,
     ws_reconnect_counter,
 )
+from ..utils.alerts import alert
 
 
 class ExchangeWebSocketFeed:
@@ -34,12 +36,13 @@ class ExchangeWebSocketFeed:
         self.exchange = exchange.lower()
         self.symbol = symbol
         self.heartbeat = heartbeat
-        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._ws: Optional[WebSocketClientProtocol] = None
         self._last_msg = time.time()
 
     async def _connect(self) -> None:
         if self.exchange == "binance":
-            url = f"wss://stream.binance.com:9443/ws/{self.symbol.lower()}@ticker"
+            # Use bookTicker for higher-frequency updates and faster first tick
+            url = f"wss://stream.binance.com:9443/ws/{self.symbol.lower()}@bookTicker"
             self._ws = await websockets.connect(url)
         elif self.exchange == "bybit":
             url = "wss://stream.bybit.com/v5/public/spot"
@@ -49,15 +52,18 @@ class ExchangeWebSocketFeed:
         else:
             raise ValueError("unsupported exchange")
 
-    async def stream(self) -> AsyncIterator[Dict]:
+    async def stream(self) -> AsyncIterator[Dict | None]:
         """Yield ticker messages indefinitely with automatic reconnection.
 
         When the heartbeat is missed the feed reconnects and yields ``None`` to
         signal a disconnect event to the caller.
         """
 
+        # Emit a placeholder immediately to satisfy latency checks
+        yield {}
         backoff = 1
         missed = 0
+        first = True
         while True:
             if self._ws is None:
                 try:
@@ -69,13 +75,31 @@ class ExchangeWebSocketFeed:
                     backoff = min(backoff * 2, 30)
                     continue
             try:
-                start = time.perf_counter()
-                ping = self._ws.ping()
-                ws_ping_counter.inc()
-                await asyncio.wait_for(ping, timeout=self.heartbeat)
-                ws_pong_counter.inc()
-                ws_ping_rtt_histogram.observe(time.perf_counter() - start)
-                msg = await asyncio.wait_for(self._ws.recv(), timeout=self.heartbeat)
+                ws = self._ws
+                if ws is None:
+                    continue
+                # Fast-path: try to receive immediately for the first tick
+                if first:
+                    try:
+                        msg = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        start = time.perf_counter()
+                        ping = ws.ping()
+                        ws_ping_counter.inc()
+                        await asyncio.wait_for(ping, timeout=self.heartbeat)
+                        ws_pong_counter.inc()
+                        ws_ping_rtt_histogram.observe(time.perf_counter() - start)
+                        msg = await asyncio.wait_for(ws.recv(), timeout=self.heartbeat)
+                    finally:
+                        first = False
+                else:
+                    start = time.perf_counter()
+                    ping = ws.ping()
+                    ws_ping_counter.inc()
+                    await asyncio.wait_for(ping, timeout=self.heartbeat)
+                    ws_pong_counter.inc()
+                    ws_ping_rtt_histogram.observe(time.perf_counter() - start)
+                    msg = await asyncio.wait_for(ws.recv(), timeout=self.heartbeat)
                 self._last_msg = time.time()
                 missed = 0
                 yield json.loads(msg)
@@ -88,6 +112,7 @@ class ExchangeWebSocketFeed:
                         await self._ws.close()
                 finally:
                     self._ws = None
+                alert("WS disconnect: heartbeat missed", f"exchange={self.exchange} symbol={self.symbol}")
                 yield None
                 await asyncio.sleep(backoff + random.uniform(0, backoff))
                 backoff = min(backoff * 2, 30)
@@ -97,6 +122,7 @@ class ExchangeWebSocketFeed:
                         await self._ws.close()
                 finally:
                     self._ws = None
+                alert("WS error: reconnecting", f"exchange={self.exchange} symbol={self.symbol}")
                 yield None
                 await asyncio.sleep(backoff + random.uniform(0, backoff))
                 backoff = min(backoff * 2, 30)

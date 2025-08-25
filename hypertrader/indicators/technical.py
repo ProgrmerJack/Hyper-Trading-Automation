@@ -70,6 +70,7 @@ from hypertrader.utils.features import (
     compute_cumulative_delta as _cumulative_delta,
     compute_exchange_netflow as _exchange_netflow,
     compute_moving_average as _sma_func,
+    compute_adx as _adx,
 )
 
 
@@ -124,6 +125,19 @@ def macd(data: Iterable[float], fast: int = 12, slow: int = 26, signal: int = 9)
     """
     macd_line, signal_line = _macd(list(data), fast, slow, signal)
     return float(macd_line[-1]), float(signal_line[-1])
+
+
+def adx(high: Iterable[float], low: Iterable[float], close: Iterable[float], period: int = 14) -> float:
+    """Average Directional Index wrapper.
+
+    Computes ADX using the upstream implementation and returns the latest value.
+    """
+    import pandas as pd
+    h = pd.Series(list(high), dtype=float)
+    l = pd.Series(list(low), dtype=float)
+    c = pd.Series(list(close), dtype=float)
+    series = _adx(h, l, c, period)
+    return float(series.iloc[-1])
 
 
 def atr(high: Iterable[float], low: Iterable[float], close: Iterable[float], period: int) -> float:
@@ -490,4 +504,5 @@ __all__ = [
     "twap",
     "cumulative_delta",
     "exchange_netflow",
+    "adx",
 ]

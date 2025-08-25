@@ -4,9 +4,13 @@ import time
 import uuid
 
 import ccxt.async_support as ccxt
+from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from .validators import validate_order
 from .rate_limiter import TokenBucket
+
+load_dotenv()
 
 ex = getattr(ccxt, os.getenv("EXCHANGE", "binance"))({
     "apiKey": os.getenv("API_KEY"),
@@ -89,23 +93,39 @@ async def place_order(
     await _create_limiter.acquire()
     await ex.load_markets()
     market = ex.market(symbol)
-    if price is not None:
-        if not validate_order(price, qty, market):
-            raise ValueError("Order violates market limits")
-        fn = ex.create_limit_buy_order if side == "buy" else ex.create_limit_sell_order
-        before = time.perf_counter()
-        order = await fn(symbol, qty, price, params)
-    else:
-        if not validate_order(0.0, qty, market):
-            raise ValueError("Order violates market limits")
-        fn = ex.create_market_buy_order if side == "buy" else ex.create_market_sell_order
-        before = time.perf_counter()
-        order = await fn(symbol, qty, params)
+
+    # Use tenacity to retry transient exchange/network errors
+    @retry(
+        reraise=True,
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        retry=retry_if_exception_type(Exception),
+    )
+    async def _send():
+        if price is not None:
+            if not validate_order(price, qty, market):
+                raise ValueError("Order violates market limits")
+            fn = ex.create_limit_buy_order if side == "buy" else ex.create_limit_sell_order
+            return await fn(symbol, qty, price, params)
+        else:
+            if not validate_order(0.0, qty, market):
+                raise ValueError("Order violates market limits")
+            fn = ex.create_market_buy_order if side == "buy" else ex.create_market_sell_order
+            return await fn(symbol, qty, params)
+
+    before = time.perf_counter()
+    order = await _send()
     latency_ms = (time.perf_counter() - before) * 1000
     logging.info("order-latency-ms %d", latency_ms)
     return order
 
 
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type(Exception),
+)
 async def cancel_order(symbol: str, order_id: str):
     """Cancel a specific order by id."""
 
@@ -114,6 +134,12 @@ async def cancel_order(symbol: str, order_id: str):
     return await ex.cancel_order(order_id, symbol)
 
 
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type(Exception),
+)
 async def cancel_all(symbol: str | None = None):
     """Cancel all outstanding orders optionally filtered by symbol."""
 

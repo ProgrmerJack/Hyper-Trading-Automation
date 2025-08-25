@@ -23,6 +23,7 @@ from ..utils.monitoring import (
     ws_ping_rtt_histogram,
     ws_reconnect_counter,
 )
+from ..utils.alerts import alert
 
 
 @dataclass
@@ -288,6 +289,7 @@ class PrivateWebSocketFeed:
                 finally:
                     self._ws = None
                 await cancel_all()
+                alert("Private WS timeout: cancel-all", f"exchange={self.exchange} market={self.market}")
                 await asyncio.sleep(backoff + random.uniform(0, backoff))
                 backoff = min(backoff * 2, 30)
             except Exception:
@@ -297,6 +299,7 @@ class PrivateWebSocketFeed:
                 finally:
                     self._ws = None
                 await cancel_all()
+                alert("Private WS error: cancel-all", f"exchange={self.exchange} market={self.market}")
                 await asyncio.sleep(backoff + random.uniform(0, backoff))
                 backoff = min(backoff * 2, 30)
 

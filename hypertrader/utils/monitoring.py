@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Iterable
+import os
 
 import numpy as np
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
@@ -32,7 +33,16 @@ ack_fill_histogram = Histogram("ack_to_fill_seconds", "Time between order acknow
 
 
 def start_metrics_server(port: int = 8000) -> None:
-    """Start a Prometheus metrics HTTP server."""
+    """Start a Prometheus metrics HTTP server.
+
+    The port can be overridden via the ``METRICS_PORT`` environment variable.
+    """
+    env_port = os.getenv("METRICS_PORT")
+    if env_port:
+        try:
+            port = int(env_port)
+        except Exception:
+            pass
     start_http_server(port)
 
 
