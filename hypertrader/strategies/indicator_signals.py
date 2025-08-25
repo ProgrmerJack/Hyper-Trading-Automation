@@ -27,6 +27,7 @@ class Signal:
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     volume: float = 0.0
+    confidence: float = 0.6
 
 
 def generate_signal(

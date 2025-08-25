@@ -24,3 +24,5 @@ vadersentiment==3.3.2
 vectorbt==0.28.0
 websockets==15.0.1
 streamlit==1.36.0
+plotly>=5.0.0
+pytz>=2023.3

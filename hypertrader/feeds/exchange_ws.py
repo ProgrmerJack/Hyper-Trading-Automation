@@ -41,8 +41,8 @@ class ExchangeWebSocketFeed:
 
     async def _connect(self) -> None:
         if self.exchange == "binance":
-            # Use bookTicker for higher-frequency updates and faster first tick
-            url = f"wss://stream.binance.com:9443/ws/{self.symbol.lower()}@bookTicker"
+            # Use ticker stream; stream_ohlcv expects ticker fields (o,h,l,c)
+            url = f"wss://stream.binance.com:9443/ws/{self.symbol.lower()}@ticker"
             self._ws = await websockets.connect(url)
         elif self.exchange == "bybit":
             url = "wss://stream.bybit.com/v5/public/spot"

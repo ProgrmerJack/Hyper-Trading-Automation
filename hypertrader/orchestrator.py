@@ -83,21 +83,14 @@ class TradingOrchestrator:
                 else:
                     ccxt_symbol = symbol.replace("-", "/")
                     ws_symbol = symbol.replace("-", "").replace("/", "")
-                feed = ExchangeWebSocketFeed(exchange, ws_symbol)
-                candle_queue: asyncio.Queue[list[float]] = asyncio.Queue()
                 
-                async def _pump_candles() -> None:
-                    async for _ in stream_ohlcv(
-                        ccxt_symbol, exchange_name=exchange, queue=candle_queue
-                    ):
-                        # stream_ohlcv already enqueues, we just drive the generator
-                        await asyncio.sleep(0)
-
-                candle_task = asyncio.create_task(_pump_candles())
+                # Use stream_ohlcv directly - it manages its own WebSocket feed
                 candles: list[list[float]] = []
                 try:
-                    async for msg in feed.stream():
-                        if msg is None:
+                    async for candle in stream_ohlcv(
+                        ccxt_symbol, exchange_name=exchange
+                    ):
+                        if candle is None:
                             # heartbeat missed -> cancel outstanding orders
                             try:
                                 from .execution.ccxt_executor import cancel_all as _cancel_all
@@ -106,10 +99,6 @@ class TradingOrchestrator:
                                 import logging
                                 logging.warning(f"Order cancellation failed: {e}")
                                 pass
-                            continue
-                        try:
-                            candle = candle_queue.get_nowait()
-                        except asyncio.QueueEmpty:
                             continue
                         candles.append(candle)
                         candles = candles[-1000:]
@@ -124,10 +113,7 @@ class TradingOrchestrator:
                         if self.max_cycles is not None and cycles >= self.max_cycles:
                             break
                 finally:
-                    candle_task.cancel()
-                    with contextlib.suppress(Exception):
-                        await candle_task
-                    await feed.close()
+                    pass  # stream_ohlcv manages its own cleanup
             else:
                 while self.max_cycles is None or cycles < self.max_cycles:
                     await self._cycle()

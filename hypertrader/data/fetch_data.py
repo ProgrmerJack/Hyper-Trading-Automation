@@ -126,10 +126,13 @@ async def stream_ohlcv(
 
     feed = ExchangeWebSocketFeed(exchange_name, ws_symbol)
     async for msg in feed.stream():
-        if msg is None:
+        if msg is None or not msg or not isinstance(msg, dict):
             continue
         ts = int(time.time() * 1000)
         if exchange_name.lower() == "binance":
+            # Skip messages that don't have required fields
+            if not all(key in msg for key in ["o", "h", "l", "c"]):
+                continue
             candle = [
                 ts,
                 float(msg["o"]),

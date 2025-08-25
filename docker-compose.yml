@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  bot:
+    build: .
+    container_name: hypertrader-bot
+    environment:
+      - EXCHANGE=binance
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    command: ["python", "scripts/run_paper_orchestrator.py"]
+    volumes:
+      - ./:/app
+    working_dir: /app
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    container_name: hypertrader-dashboard
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    command: ["python", "-m", "streamlit", "run", "dashboard/streamlit_app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - bot
+    restart: unless-stopped
+
+
