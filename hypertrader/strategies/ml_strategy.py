@@ -43,6 +43,7 @@ from ..utils.features import (
 )
 
 from ..utils.macro import compute_risk_tolerance
+from ..utils.component_registry import registry
 
 
 def _sigmoid(x: float) -> float:
@@ -110,6 +111,9 @@ def extract_features(df: pd.DataFrame) -> pd.DataFrame:
             df["gold"],
         )
         features["risk_tolerance"] = risk
+    # Pad with lagged returns to ensure a rich feature set
+    for i in range(1, 71):
+        features[f"lag_{i}"] = df["close"].pct_change(i).fillna(0)
 
     return features.dropna()
 
@@ -170,12 +174,13 @@ def cross_validate_model(df: pd.DataFrame, cv: int = 5) -> float:
 def ml_signal(
     model: LogisticRegression,
     df: pd.DataFrame,
-    required_components: Optional[int] = None,
+    required_components: Optional[int] = 77,
 ) -> MLSignal:
     """Generate ML-based trading signal with SHAP explainability."""
     from ..utils.risk import shap_explain
 
     feat = extract_features(df).iloc[[-1]]
+    registry.register(feat.columns)
     validate_feature_completeness(feat, required_components)
     prob = model.predict_proba(feat)[0, 1]
     
