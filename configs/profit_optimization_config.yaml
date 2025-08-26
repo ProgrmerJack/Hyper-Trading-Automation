@@ -1,0 +1,158 @@
+# Profit Optimization Configuration for Medium Risk Profile
+# Optimized for consistent returns with controlled downside risk
+
+# Risk Management Parameters
+risk_management:
+  max_drawdown: 0.15  # 15% maximum drawdown before kill switch
+  position_risk_percent: 2.5  # 2.5% risk per trade (medium risk)
+  max_leverage: 3.0  # Conservative leverage limit
+  min_leverage: 1.0
+  stop_loss_multiplier: 2.0  # ATR multiplier for stops
+  take_profit_multiplier: 3.5  # Risk/reward ratio of 1:1.75
+  
+  # Dynamic position sizing
+  volatility_scaling: true
+  volatility_threshold: 0.06  # Reduce size when volatility > 6%
+  drawdown_scaling: true
+  momentum_scaling: true  # Increase size during strong trends
+
+# Strategy Configuration
+strategies:
+  # Technical strategies with optimized thresholds
+  technical:
+    ma_cross:
+      enabled: true
+      weight: 0.20
+      fast_period: 8
+      slow_period: 21
+      signal_threshold: 0.6  # Lower threshold for more signals
+    
+    rsi:
+      enabled: true
+      weight: 0.15
+      period: 14
+      overbought: 65  # Less extreme levels for more trades
+      oversold: 35
+      
+    macd:
+      enabled: true
+      weight: 0.18
+      fast: 12
+      slow: 26
+      signal: 9
+      threshold: 0.001  # Sensitive to small changes
+      
+    bollinger_bands:
+      enabled: true
+      weight: 0.12
+      period: 20
+      std_dev: 1.8  # Tighter bands for more signals
+      
+  # ML Strategy Configuration
+  ml_strategy:
+    enabled: true
+    weight: 0.25
+    retrain_interval: 500  # More frequent retraining
+    confidence_threshold: 0.55  # Lower threshold for more activity
+    volatility_filter: 0.08  # Only filter extreme volatility
+    
+  # Sentiment Strategy
+  sentiment:
+    enabled: true
+    weight: 0.10
+    news_weight: 0.4
+    macro_weight: 0.6  # Higher macro sentiment weight
+    
+# Signal Aggregation
+signal_aggregation:
+  min_strategies_agreement: 2  # Require at least 2 strategies to agree
+  confidence_boost_multiplier: 1.3  # Boost confidence when multiple agree
+  max_signal_strength: 0.95
+  
+  # Profit maximization thresholds (more aggressive)
+  buy_threshold: 0.52  # Lower threshold = more trades
+  sell_threshold: 0.48
+  strong_signal_threshold: 0.75
+
+# Position Management
+position_management:
+  partial_profit_taking: true
+  profit_levels: [0.02, 0.04, 0.06]  # Take profits at 2%, 4%, 6%
+  profit_percentages: [25, 50, 25]  # Take 25%, 50%, 25% at each level
+  
+  trailing_stop: true
+  trailing_activation: 0.015  # Activate trailing after 1.5% profit
+  trailing_distance: 0.01  # Trail 1% behind peak
+  
+  scale_in: true  # Add to winning positions
+  scale_in_threshold: 0.01  # Add after 1% profit
+  max_scale_ins: 2
+
+# Market Regime Adaptation
+regime_adaptation:
+  enabled: true
+  trending_market:
+    position_multiplier: 1.4  # Increase size in trends
+    hold_time_multiplier: 1.5
+    
+  ranging_market:
+    position_multiplier: 0.8  # Reduce size in ranges
+    quick_profit_taking: true
+    
+  volatile_market:
+    position_multiplier: 0.6  # Reduce size in high volatility
+    wider_stops: true
+    stop_multiplier: 3.0
+
+# Advanced Features
+advanced:
+  # Multi-timeframe confirmation
+  timeframe_confirmation: true
+  primary_timeframe: "1h"
+  confirmation_timeframes: ["4h", "1d"]
+  
+  # Correlation filtering
+  correlation_filter: true
+  max_correlated_positions: 2
+  
+  # Market hours optimization
+  market_hours_bias: true
+  active_hours: 
+    start: "08:00"
+    end: "22:00"
+    timezone: "UTC"
+  
+  # News event filtering
+  news_filter: true
+  major_events_halt: true  # Stop trading during major economic events
+
+# Binance Specialized Bots Integration
+binance_bots:
+  spot_grid:
+    enabled: true
+    allocation_percent: 15  # 15% of capital for grid trading
+    grid_count: 12
+    profit_per_grid: 0.8  # 0.8% profit per grid level
+    
+  funding_arbitrage:
+    enabled: true
+    allocation_percent: 10  # 10% for funding arb
+    min_apr_threshold: 12  # 12% APR minimum
+    
+  dca_bot:
+    enabled: true
+    allocation_percent: 5  # 5% for DCA during dips
+    dip_threshold: -3  # Buy on 3%+ dips
+
+# Performance Targets
+performance_targets:
+  monthly_return_target: 0.08  # 8% monthly target
+  max_monthly_drawdown: 0.10  # 10% max monthly drawdown
+  win_rate_target: 0.58  # 58% win rate target
+  profit_factor_target: 1.6  # 1.6 profit factor target
+  
+  # Auto-adjustment parameters
+  auto_adjust_risk: true
+  performance_review_days: 7
+  underperformance_risk_reduction: 0.8  # Reduce risk by 20% if underperforming
+  overperformance_risk_increase: 1.2  # Increase risk by 20% if overperforming

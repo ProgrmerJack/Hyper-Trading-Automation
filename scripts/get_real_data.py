@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Fetch real market data for backtesting."""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
+
 import pandas as pd
 from hypertrader.data.fetch_data import fetch_ohlcv
 

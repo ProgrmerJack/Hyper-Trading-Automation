@@ -1,0 +1,221 @@
+# Conservative HyperTrader Configuration for Steady Growth
+# This configuration prioritizes steady, consistent returns with minimal risk
+
+trading:
+  symbol: "BTC-USD"
+  account_balance: 100.0
+  risk_percent: 2.0  # Conservative risk per trade
+  exchange: "binance"
+  max_exposure: 1.5  # Conservative leverage
+  live: false  # Set to true for live trading
+
+# Conservative risk management parameters
+risk:
+  max_daily_loss: 5.0   # 5% daily loss limit
+  max_position: 150.0   # 1.5x account balance maximum
+  fee_rate: 0.001      # 0.1% trading fees
+  slippage: 0.0002     # 0.02% slippage
+  max_drawdown: 0.05   # 5% max drawdown before kill switch
+  max_var: 0.05        # 5% VaR threshold
+  max_volatility: 0.05 # 5% max volatility threshold
+
+# Comprehensive strategy configuration - All available components
+strategies:
+  enabled:
+    # Technical Indicator Strategies
+    - "ma_cross"
+    - "rsi"
+    - "bb"
+    - "macd"
+    - "stochastic"
+    - "adx"
+    - "ichimoku"
+    - "psar"
+    - "cci"
+    - "keltner"
+    - "fibonacci"
+    - "williams_r"
+    - "momentum"
+    - "roc"
+    - "trix"
+    - "dmi"
+    - "aroon"
+    - "ultimate_oscillator"
+    - "commodity_channel"
+    - "detrended_price"
+    
+    # ML and AI Strategies
+    - "advanced_ml_strategy"
+    - "ml_simple"
+    - "lstm_predictor"
+    - "transformer_model"
+    - "ensemble_ml"
+    - "reinforcement_learning"
+    - "neural_network"
+    - "gradient_boosting"
+    - "random_forest"
+    - "svm_classifier"
+    
+    # Market Structure Strategies
+    - "event_trading"
+    - "sentiment_trading"
+    - "news_impact"
+    - "social_sentiment"
+    - "macro_economics"
+    - "microstructure"
+    - "flow_analysis"
+    - "order_book"
+    - "market_making"
+    - "arbitrage"
+    
+    # Risk and Portfolio Strategies
+    - "volatility_targeting"
+    - "momentum_risk_parity"
+    - "mean_reversion"
+    - "trend_following"
+    - "breakout"
+    - "swing_trading"
+    - "scalping"
+    - "position_sizing"
+    - "kelly_criterion"
+    - "sharpe_optimization"
+  
+  params:
+    # Technical Indicators
+    ma_cross:
+      fast: 10
+      slow: 21
+      confidence: 0.7
+    
+    rsi:
+      period: 14
+      oversold: 35
+      overbought: 65
+      confidence: 0.8
+    
+    bb:
+      period: 20
+      std_dev: 2.0
+      confidence: 0.75
+      
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+      confidence: 0.7
+      
+    stochastic:
+      k_period: 14
+      d_period: 3
+      confidence: 0.65
+      
+    adx:
+      period: 14
+      threshold: 25
+      confidence: 0.75
+      
+    ichimoku:
+      tenkan: 9
+      kijun: 26
+      senkou: 52
+      confidence: 0.8
+      
+    psar:
+      step: 0.02
+      max_step: 0.2
+      confidence: 0.7
+      
+    cci:
+      period: 20
+      confidence: 0.65
+      
+    keltner:
+      period: 20
+      multiplier: 2.0
+      confidence: 0.7
+      
+    fibonacci:
+      lookback: 50
+      confidence: 0.75
+    
+    # ML Strategies
+    advanced_ml_strategy:
+      lookback: 50
+      confidence_threshold: 0.7
+      
+    ml_simple:
+      features: ["price", "volume", "volatility"]
+      confidence: 0.8
+      
+    lstm_predictor:
+      sequence_length: 60
+      hidden_units: 128
+      confidence: 0.75
+      
+    ensemble_ml:
+      models: ["rf", "xgb", "lstm"]
+      confidence: 0.8
+    
+    # Market Structure
+    event_trading:
+      sentiment_weight: 0.2
+      news_impact_threshold: 0.3
+      
+    sentiment_trading:
+      threshold: 0.1
+      weight: 0.15
+      
+    microstructure:
+      order_flow_weight: 0.3
+      toxicity_threshold: 0.7
+
+# ML and sentiment configuration
+ml:
+  model_path: null  # Will use built-in models
+  sentiment:
+    enabled: true
+    weight: 0.15  # Reduced weight, more focus on technical
+    threshold: -0.3  # Allow trading in slightly negative sentiment
+  
+  meta_score:
+    # Comprehensive weighting for all components
+    technical_weight: 0.30     # Technical indicators
+    ml_weight: 0.25           # ML and AI models
+    microstructure_weight: 0.20 # Market microstructure
+    sentiment_weight: 0.10    # News and social sentiment
+    macro_weight: 0.10        # Macroeconomic factors
+    regime_weight: 0.05       # Market regime detection
+
+# Conservative position sizing
+position_sizing:
+  method: "kelly_criterion_enhanced"
+  kelly_max_fraction: 0.10  # Conservative 10% max per trade
+  confidence_multiplier: 0.8
+  growth_multiplier: 1.0    # No growth multiplier for steady approach
+  volatility_adjustment: true
+  trend_multiplier: false   # Disable for consistency
+
+# Conservative signal thresholds for quality trades only
+signals:
+  strong_threshold: 0.85    # High threshold for strong signals
+  medium_threshold: 0.75    # High threshold for medium signals
+  weak_threshold: 0.65      # No weak signals, quality only
+  confidence_boost: false   # No artificial confidence boost
+
+# API keys (set via environment variables)
+api_keys:
+  news: ${NEWS_API_KEY}
+  fred: ${FRED_API_KEY}
+  etherscan: ${ETHERSCAN_API_KEY}
+
+# File paths
+paths:
+  signal_path: "data/signal.json"
+  state_path: "data/state.json"
+  log_path: "logs/"
+
+# Dashboard settings
+dashboard:
+  auto_refresh: true
+  refresh_interval: 5  # seconds
+  port: 8502

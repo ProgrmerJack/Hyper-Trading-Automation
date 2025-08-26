@@ -2,6 +2,8 @@
 """Complete example: Fetch real data and run backtests."""
 
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -19,16 +21,27 @@ def fetch_real_data(symbol="BTC/USDT", timeframe="1h", days=30):
     """Fetch real market data."""
     print(f"Fetching {days} days of {symbol} data...")
     
-    exchange = ccxt.binance()
-    since = exchange.milliseconds() - days * 24 * 60 * 60 * 1000
-    ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since)
-    
-    df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df.set_index('timestamp', inplace=True)
-    
-    print(f"[SUCCESS] Fetched {len(df)} candles")
-    return df
+    exchange = None
+    try:
+        exchange = ccxt.binance()
+        since = exchange.milliseconds() - days * 24 * 60 * 60 * 1000
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since)
+        
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        
+        print(f"[SUCCESS] Fetched {len(df)} candles")
+        return df
+    finally:
+        # Safely close the exchange if a close() method exists
+        try:
+            if exchange is not None:
+                close_fn = getattr(exchange, "close", None)
+                if callable(close_fn):
+                    close_fn()
+        except Exception:
+            pass
 
 def backtest_strategy(data, initial_balance=10000, risk_percent=2):
     """Backtest the hypertrader strategy."""

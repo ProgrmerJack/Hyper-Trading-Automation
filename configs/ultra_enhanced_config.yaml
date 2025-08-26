@@ -1,0 +1,261 @@
+# Ultra Enhanced HyperTrader Configuration with All Advanced Components
+# Optimized for maximum profitability with comprehensive technical, ML, and economic analysis
+# Target: $1000 (10x growth) with enhanced risk management
+
+trading:
+  symbol: "BTC-USD"
+  account_balance: 100.0
+  risk_percent: 3.0  # Conservative 3% risk per trade for sustainable growth
+  exchange: "binance"
+  max_exposure: 2.0  # 2x leverage for balanced growth
+  live: false  # Set to true for live trading
+  target_balance: 1000.0  # 10x growth target
+
+# Enhanced risk management
+risk:
+  max_daily_loss: 6.0   # 6% daily loss limit
+  max_position: 200.0   # 2x account balance maximum
+  fee_rate: 0.001      # 0.1% trading fees
+  slippage: 0.0002     # 0.02% slippage
+  max_drawdown: 0.06   # 6% max drawdown before kill switch
+  position_sizing_method: "kelly_enhanced"
+  volatility_adjustment: true
+  dynamic_sizing: true
+
+# Advanced strategy configuration
+strategies:
+  enabled: [
+    # Traditional strategies
+    "ma_cross", "rsi", "bb", "macd", "ichimoku", "psar", "cci", "keltner", "fibonacci",
+    # Advanced technical strategies
+    "multi_oscillator", "ichimoku_advanced", "trend_strength", "volume_profile", "breakout_confirmation",
+    # ML and sentiment strategies
+    "sentiment_momentum", "advanced_sentiment", "ml_simple", "rl_strategy",
+    # Market structure strategies
+    "market_maker", "stat_arb", "mean_reversion", "momentum_multi_tf"
+  ]
+  
+  parameters:
+    # Enhanced multi-oscillator strategy
+    multi_oscillator:
+      oversold_threshold: 20
+      overbought_threshold: 80
+      consensus_required: 3
+      
+    # Advanced Ichimoku with full cloud analysis
+    ichimoku_advanced:
+      enable_cloud_analysis: true
+      enable_momentum_filter: true
+      
+    # Trend strength with multiple confirmations
+    trend_strength:
+      adx_threshold: 20
+      strong_trend_threshold: 35
+      
+    # Volume profile for institutional flow
+    volume_profile:
+      cmf_threshold: 0.03
+      vo_threshold: 3.0
+      
+    # Breakout confirmation with volume
+    breakout_confirmation:
+      lookback_period: 15
+      volume_multiplier: 1.3
+      
+    # Advanced sentiment analysis
+    sentiment_momentum:
+      sentiment_threshold: 0.25
+      momentum_period: 12
+      
+    # Traditional strategies with optimized parameters
+    ma_cross:
+      fast: 8
+      slow: 21
+    
+    rsi:
+      period: 12
+      oversold: 25
+      overbought: 75
+    
+    bb:
+      period: 18
+      std_dev: 1.8
+    
+    macd:
+      fast: 10
+      slow: 24
+      signal: 8
+
+# Advanced technical indicators
+indicators:
+  enabled: [
+    # Traditional indicators
+    "ema", "sma", "rsi", "macd", "atr", "bollinger_bands", "vwap", "obv",
+    # Advanced oscillators
+    "stochastic_oscillator", "williams_r", "commodity_channel_index", "ultimate_oscillator",
+    # Trend analysis
+    "parabolic_sar_advanced", "ichimoku_cloud_full", "aroon_indicator", "average_directional_index",
+    "vortex_indicator",
+    # Volume analysis
+    "volume_oscillator", "chaikin_money_flow", "on_balance_volume_advanced",
+    # Volatility and channels
+    "keltner_channels_advanced", "price_channel_donchian"
+  ]
+  
+  parameters:
+    stochastic_oscillator:
+      k_period: 12
+      d_period: 3
+    
+    williams_r:
+      period: 12
+    
+    commodity_channel_index:
+      period: 18
+    
+    ultimate_oscillator:
+      period1: 6
+      period2: 12
+      period3: 24
+    
+    aroon_indicator:
+      period: 12
+    
+    average_directional_index:
+      period: 12
+    
+    chaikin_money_flow:
+      period: 18
+
+# ML and sentiment configuration
+ml:
+  enabled: true
+  models: ["finbert", "crypto_bert", "twitter_roberta", "news_bert"]
+  sentiment_sources: ["news", "social_media", "market_data"]
+  confidence_threshold: 0.6
+  ensemble_method: "weighted_average"
+  
+  # Advanced sentiment parameters
+  news_weight: 0.4
+  social_weight: 0.3
+  market_weight: 0.3
+  
+  # Model refresh settings
+  model_update_frequency: "daily"
+  retrain_threshold: 0.7
+
+# Economic indicators configuration
+economic:
+  enabled: true
+  fred_api_key_env: "FRED_API_KEY"
+  
+  # Macroeconomic indicators
+  macro_indicators: ["dxy", "inflation", "yield_curve", "money_supply", "vix"]
+  
+  # Microstructure analysis
+  microstructure: ["volume_profile", "price_impact", "spread_analysis", "momentum_persistence"]
+  
+  # Update frequencies (in hours)
+  macro_update_frequency: 6
+  micro_update_frequency: 1
+
+# Signal aggregation and scoring
+signals:
+  # Enhanced meta score weights
+  meta_score_weights:
+    microstructure: 0.25
+    technical: 0.35
+    sentiment: 0.20
+    economic: 0.20
+  
+  # Entry thresholds (more conservative)
+  entry_threshold: 0.35  # Require 35% consensus for entry
+  strong_entry_threshold: 0.60  # Strong signal threshold
+  exit_threshold: 0.15   # Lower threshold for exits
+  
+  # Signal filtering
+  minimum_confidence: 0.4
+  consensus_required: 4  # Require at least 4 strategies to agree
+  
+  # Dynamic threshold adjustment
+  volatility_adjustment: true
+  market_regime_adjustment: true
+
+# Position sizing and risk
+position_sizing:
+  method: "enhanced_kelly"
+  kelly_multiplier: 0.3  # Conservative Kelly fraction
+  max_position_pct: 15.0  # Maximum 15% of portfolio per position
+  
+  # Dynamic sizing factors
+  volatility_scaling: true
+  confidence_scaling: true
+  trend_strength_scaling: true
+  
+  # Risk adjustments
+  drawdown_scaling: true
+  performance_scaling: true
+
+# Execution and monitoring
+execution:
+  order_type: "limit"
+  slippage_tolerance: 0.0005  # 0.05% slippage tolerance
+  timeout_seconds: 30
+  retry_attempts: 3
+  
+  # Advanced execution features
+  iceberg_orders: true
+  twap_execution: true
+  volume_participation_rate: 0.1  # 10% of volume
+  
+monitoring:
+  enable_dashboard: true
+  update_frequency: 5  # seconds
+  log_level: "INFO"
+  
+  # Performance tracking
+  track_strategy_performance: true
+  track_indicator_effectiveness: true
+  track_economic_impact: true
+  
+  # Alerts and notifications
+  enable_alerts: true
+  alert_thresholds:
+    drawdown: 0.04  # Alert at 4% drawdown
+    daily_loss: 0.05  # Alert at 5% daily loss
+    position_size: 0.12  # Alert if position > 12%
+
+# Component integration
+components:
+  # Enable all advanced components
+  enable_all: true
+  
+  # Component priorities (1-10, higher = more important)
+  priorities:
+    technical_indicators: 8
+    advanced_strategies: 9
+    sentiment_analysis: 7
+    economic_indicators: 6
+    risk_management: 10
+    
+# API configuration
+api_keys:
+  news_api_key_env: "NEWS_API_KEY"
+  fred_api_key_env: "FRED_API_KEY" 
+  twitter_api_key_env: "TWITTER_API_KEY"
+  etherscan_api_key_env: "ETHERSCAN_API_KEY"
+
+# Backtesting configuration (for validation)
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2024-08-26"
+  initial_capital: 100.0
+  commission: 0.001
+  
+# Performance targets
+targets:
+  annual_return: 900.0  # 900% (10x)
+  max_drawdown: 6.0    # 6%
+  sharpe_ratio: 2.0    # Target Sharpe > 2
+  win_rate: 65.0       # 65% win rate
+  profit_factor: 2.5   # 2.5 profit factor

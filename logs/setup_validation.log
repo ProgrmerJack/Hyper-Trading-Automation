@@ -1,0 +1,55 @@
+2025-08-26 19:17:11,162 - INFO - Please update your .env file with actual credentials
+2025-08-26 19:17:11,222 - INFO - Testing testnet connection...
+2025-08-26 19:17:13,323 - WARNING - binance requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2025-08-26 19:17:13,323 - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001DE697B4DF0>
+2025-08-26 19:17:13,323 - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001DE697E1F00>, 3174.203), (<aiohttp.client_proto.ResponseHandler object at 0x000001DE697E2380>, 3174.265)])', 'deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001DE697E1BA0>, 3175.109)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001DE697B4D90>
+2025-08-26 19:17:13,341 - INFO - 
+==================================================
+2025-08-26 19:17:13,341 - INFO - SAFETY CHECK RESULTS
+2025-08-26 19:17:13,341 - INFO - ==================================================
+2025-08-26 19:17:13,351 - INFO - ==================================================
+2025-08-26 19:31:48,274 - INFO - Running pre-live safety checks...
+2025-08-26 19:31:48,275 - ERROR - FAIL - Missing required environment variables: ['BINANCE_API_KEY', 'TELEGRAM_BOT_TOKEN']
+2025-08-26 19:31:48,275 - INFO - Please update your .env file with actual credentials
+2025-08-26 19:31:48,316 - INFO - Testing testnet connection...
+2025-08-26 19:31:50,902 - ERROR - FAIL - Authentication failed: binance {"code":-2014,"msg":"API-key format invalid."}
+2025-08-26 19:31:50,903 - WARNING - binance requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2025-08-26 19:31:50,903 - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x00000289040BC2F0>
+2025-08-26 19:31:50,904 - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000289040C0530>, 4051.419477), (<aiohttp.client_proto.ResponseHandler object at 0x00000289040C0410>, 4051.8782273)])', 'deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000289040C0110>, 4052.7289938)])']
+connector: <aiohttp.connector.TCPConnector object at 0x0000028903FCBB60>
+2025-08-26 19:31:50,915 - INFO - 
+==================================================
+2025-08-26 19:31:50,915 - INFO - SAFETY CHECK RESULTS
+2025-08-26 19:31:50,915 - INFO - ==================================================
+2025-08-26 19:31:50,915 - INFO - Environment Variables......... [FAIL]
+2025-08-26 19:31:50,915 - INFO - Directory Structure........... [PASS]
+2025-08-26 19:31:50,915 - INFO - Live Config Creation.......... [PASS]
+2025-08-26 19:31:50,915 - INFO - Testnet Connection............ [FAIL]
+2025-08-26 19:31:50,915 - INFO - ==================================================
+2025-08-26 19:31:50,915 - ERROR - ERROR - Some safety checks failed. Fix issues before live trading.
+2025-08-26 20:31:21,930 - INFO - Running pre-live safety checks...
+2025-08-26 20:31:21,931 - ERROR - FAIL - Missing required environment variables: ['BINANCE_API_KEY', 'TELEGRAM_BOT_TOKEN']
+2025-08-26 20:31:21,931 - INFO - Please update your .env file with actual credentials
+2025-08-26 20:31:21,979 - INFO - Testing testnet connection...
+2025-08-26 20:31:24,499 - ERROR - FAIL - Authentication failed: binance {"code":-2014,"msg":"API-key format invalid."}
+2025-08-26 20:31:24,503 - WARNING - binance requires to release all resources with an explicit call to the .close() coroutine. If you are using the exchange instance with async coroutines, add `await exchange.close()` to your code into a place when you're done with the exchange and don't need the exchange instance anymore (at the end of your async coroutine).
+2025-08-26 20:31:24,513 - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000002177B164DF0>
+2025-08-26 20:31:24,514 - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000002177B163FA0>, 7625.203), (<aiohttp.client_proto.ResponseHandler object at 0x000002177B163DC0>, 7625.421)])', 'deque([(<aiohttp.client_proto.ResponseHandler object at 0x000002177B163B80>, 7626.296)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000002177B164D90>
+2025-08-26 20:31:24,540 - INFO - 
+==================================================
+2025-08-26 20:31:24,543 - INFO - SAFETY CHECK RESULTS
+2025-08-26 20:31:24,543 - INFO - ==================================================
+2025-08-26 20:31:24,543 - INFO - Environment Variables......... [FAIL]
+2025-08-26 20:31:24,544 - INFO - Directory Structure........... [PASS]
+2025-08-26 20:31:24,544 - INFO - Live Config Creation.......... [PASS]
+2025-08-26 20:31:24,544 - INFO - Testnet Connection............ [FAIL]
+2025-08-26 20:31:24,544 - INFO - ==================================================
+2025-08-26 20:31:24,544 - ERROR - ERROR - Some safety checks failed. Fix issues before live trading.

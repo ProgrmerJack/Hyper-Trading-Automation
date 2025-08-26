@@ -1,0 +1,154 @@
+import logging
+import os
+import time
+import uuid
+
+import ccxt.async_support as ccxt
+from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from .validators import validate_order
+from .rate_limiter import TokenBucket
+
+load_dotenv()
+
+ex = getattr(ccxt, os.getenv("EXCHANGE", "binance"))({
+    "apiKey": os.getenv("API_KEY"),
+    "secret": os.getenv("API_SECRET"),
+    "enableRateLimit": True,
+})
+
+_create_limiter = TokenBucket(
+    float(os.getenv("CREATE_RATE", "10")), int(os.getenv("CREATE_BURST", "10"))
+)
+_cancel_limiter = TokenBucket(
+    float(os.getenv("CANCEL_RATE", "10")), int(os.getenv("CANCEL_BURST", "10"))
+)
+
+
+async def place_order(
+    symbol: str,
+    side: str,
+    qty: float,
+    price: float | None = None,
+    client_id: str | None = None,
+    params: dict | None = None,
+    post_only: bool = False,
+    reduce_only: bool = False,
+    time_in_force: str | None = None,
+):
+    """Place an order after validating venue limits.
+
+    Parameters
+    ----------
+    symbol : str
+        Trading pair symbol e.g. ``BTC/USDT``.
+    side : str
+        Either ``buy`` or ``sell``.
+    qty : float
+        Quantity to trade.
+    price : float | None, optional
+        Limit price.  If ``None`` a market order is sent.
+    client_id : str | None, optional
+        Optional idempotency key.  A random UUID will be generated if not provided.
+    params : dict | None, optional
+        Additional parameters for the CCXT order call.
+    post_only : bool, optional
+        When ``True`` the order is submitted with a post-only flag.  Raises
+        ``RuntimeError`` if the venue does not support it.
+    reduce_only : bool, optional
+        When ``True`` the order is submitted with a reduce-only flag.  Raises
+        ``RuntimeError`` if unsupported by the venue.
+    time_in_force : str | None, optional
+        Optional time-in-force directive (e.g. ``"GTC"`` or ``"IOC"``).
+    """
+
+    params = params.copy() if params else {}
+    if client_id is None:
+        client_id = uuid.uuid4().hex
+    params.setdefault("clientOrderId", client_id)
+
+    ex_id = getattr(ex, "id", "")
+    if ex_id in {"binance", "bybit", "okx"}:
+        # explicit mappings for common venues
+        if post_only:
+            tif = {"binance": "GTX", "bybit": "PostOnly", "okx": "post_only"}[ex_id]
+            params["timeInForce"] = tif
+        elif time_in_force:
+            params["timeInForce"] = time_in_force
+        if reduce_only:
+            params["reduceOnly"] = True
+    else:
+        if post_only:
+            if not ex.has.get("createPostOnlyOrder", False):
+                raise RuntimeError("post-only orders not supported")
+            params["postOnly"] = True
+        if reduce_only:
+            if not ex.has.get("createReduceOnlyOrder", False):
+                raise RuntimeError("reduce-only orders not supported")
+            params["reduceOnly"] = True
+        if time_in_force:
+            params["timeInForce"] = time_in_force
+
+    await _create_limiter.acquire()
+    await ex.load_markets()
+    market = ex.market(symbol)
+
+    # Use tenacity to retry transient exchange/network errors
+    @retry(
+        reraise=True,
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        retry=retry_if_exception_type(Exception),
+    )
+    async def _send():
+        if price is not None:
+            if not validate_order(price, qty, market):
+                raise ValueError("Order violates market limits")
+            fn = ex.create_limit_buy_order if side == "buy" else ex.create_limit_sell_order
+            return await fn(symbol, qty, price, params)
+        else:
+            if not validate_order(0.0, qty, market):
+                raise ValueError("Order violates market limits")
+            fn = ex.create_market_buy_order if side == "buy" else ex.create_market_sell_order
+            return await fn(symbol, qty, params)
+
+    before = time.perf_counter()
+    order = await _send()
+    latency_ms = (time.perf_counter() - before) * 1000
+    logging.info("order-latency-ms %d", latency_ms)
+    return order
+
+
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type(Exception),
+)
+async def cancel_order(symbol: str, order_id: str):
+    """Cancel a specific order by id."""
+
+    await _cancel_limiter.acquire()
+    await ex.load_markets()
+    return await ex.cancel_order(order_id, symbol)
+
+
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type(Exception),
+)
+async def cancel_all(symbol: str | None = None):
+    """Cancel all outstanding orders optionally filtered by symbol."""
+
+    await ex.load_markets()
+    if ex.has.get("cancelAllOrders", False):
+        await _cancel_limiter.acquire()
+        return await ex.cancel_all_orders(symbol)
+    open_orders = await ex.fetch_open_orders(symbol)
+    for order in open_orders:
+        await _cancel_limiter.acquire()
+        await ex.cancel_order(order["id"], order["symbol"])
+    return open_orders

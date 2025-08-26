@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
+
 import asyncio
 import json
 import os
 import sqlite3
-from pathlib import Path
-
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -43,29 +45,17 @@ def cancel_all_orders(symbol: str | None = None) -> str:
 
 
 def main() -> None:
-    st.set_page_config(page_title="HyperTrader Dashboard", layout="wide")
+    st.set_page_config(
+        page_title="HyperTrader Dashboard", page_icon="⚡", layout="wide", initial_sidebar_state="expanded"
+    )
     st.title("🚀 HyperTrader – Live Real-Time Dashboard")
     
-    # Uzbekistan timezone display
-    try:
-        uzbekistan_tz = pytz.timezone('Asia/Tashkent')
-        utc_now = datetime.utcnow().replace(tzinfo=pytz.UTC)
-        current_time_uzb = utc_now.astimezone(uzbekistan_tz)
-        st.caption(f"🇺🇿 Uzbekistan Time: {current_time_uzb.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC+5)")
-    except Exception as e:
-        st.caption(f"🇺🇿 Timezone Error: {e}")
-    
-    # Auto-refresh every 5 seconds for real-time data
+    # Auto-refresh setup
     import time
     if "last_refresh" not in st.session_state:
         st.session_state.last_refresh = time.time()
     
-    # Auto-refresh mechanism
-    refresh_placeholder = st.empty()
-    with refresh_placeholder.container():
-        st.info("🔄 Dashboard auto-refreshes every 5 seconds for real-time data")
-    
-    # Auto-refresh using Streamlit's rerun capability
+    # Check for auto-refresh every 5 seconds
     if time.time() - st.session_state.last_refresh > 5:
         st.session_state.last_refresh = time.time()
         st.rerun()
@@ -121,19 +111,38 @@ def main() -> None:
         state_path = Path(state_path_str)
         state = load_state(state_path)
 
-    # Calculate P&L metrics for $100 to $1000 challenge
-    current_equity = state.get('equity', 0)
-    initial_equity = state.get('original_balance', 100)  # Use original starting balance for P&L
-    total_pnl = current_equity - initial_equity
-    pnl_pct = (total_pnl / initial_equity * 100) if initial_equity > 0 else 0
-    peak_equity = state.get('peak_equity', 0)
-    drawdown = ((peak_equity - current_equity) / peak_equity * 100) if peak_equity > 0 else 0
+    # Calculate REAL P&L metrics from actual trading data
+    conn = sqlite3.connect(db_path)
+    try:
+        # Get real equity from actual fills and positions
+        real_pnl_query = query_df(conn, """
+            SELECT 
+                COALESCE(SUM(CASE WHEN o.side = 'SELL' THEN f.qty * f.price 
+                                  ELSE -f.qty * f.price END), 0) as realized_pnl,
+                COUNT(DISTINCT f.order_id) as total_trades
+            FROM fills f
+            JOIN orders o ON f.order_id = o.id
+        """)
+        
+        initial_equity = 100.0  # Starting balance
+        realized_pnl = real_pnl_query.iloc[0]['realized_pnl'] if not real_pnl_query.empty else 0.0
+        trade_count = real_pnl_query.iloc[0]['total_trades'] if not real_pnl_query.empty else 0
+        current_equity = initial_equity + realized_pnl
+        total_pnl = realized_pnl
+        pnl_pct = (total_pnl / initial_equity * 100) if initial_equity > 0 else 0
+        
+        # Calculate peak equity from equity history (if available)
+        peak_equity = max(current_equity, initial_equity)
+        drawdown = 0.0
+        
+    finally:
+        conn.close()
 
-    # 10x Challenge Progress Bar
+    # Real Trading Challenge Progress Bar
     target_equity = 1000.0
-    progress = min(1.0, current_equity / target_equity)
-    st.subheader("🎯 $100 → $1000 Challenge Progress")
-    st.progress(progress, text=f"${current_equity:.2f} / $1000 ({progress*100:.1f}%)")
+    progress = max(0.0, min(1.0, current_equity / target_equity))  # Clamp between 0.0 and 1.0
+    st.subheader("🎯 Real Trading Challenge: $100 → $1000")
+    st.progress(progress, text=f"${current_equity:.2f} / $1000 ({progress*100:.1f}%) - {trade_count} Real Trades")
     
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -198,23 +207,34 @@ def main() -> None:
         conn.close()
 
     st.subheader("Open Orders")
-    st.dataframe(open_orders, use_container_width=True, hide_index=True)
+    if not open_orders.empty:
+        st.dataframe(open_orders, use_container_width=True, hide_index=True)
+    else:
+        st.info("No open orders.")
 
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Recent Orders")
-        st.dataframe(recent_orders, use_container_width=True, height=400, hide_index=True)
         if not recent_orders.empty:
+            st.dataframe(recent_orders, use_container_width=True, height=400, hide_index=True)
             csv = recent_orders.to_csv(index=False).encode()
             st.download_button("Download Orders CSV", csv, file_name="orders.csv", mime="text/csv")
+        else:
+            st.info("No recent orders.")
     with c2:
         st.subheader("Recent Fills")
-        st.dataframe(fills, use_container_width=True, height=400, hide_index=True)
+        if not fills.empty:
+            st.dataframe(fills, use_container_width=True, height=400, hide_index=True)
+        else:
+            st.info("No recent fills.")
 
     st.subheader("Positions")
-    st.dataframe(positions, use_container_width=True, hide_index=True)
+    if not positions.empty:
+        st.dataframe(positions, use_container_width=True, hide_index=True)
+    else:
+        st.info("No open positions.")
 
-    st.caption("Tip: use the filter to focus on a symbol. Click browser refresh to update.")
+    st.caption("Dashboard updates in real-time. Use the filter to focus on a symbol.")
 
     # Advanced Performance Metrics
     st.subheader("📊 Advanced Performance & Risk Analysis")
@@ -223,30 +243,48 @@ def main() -> None:
     perf_col1, perf_col2, perf_col3, perf_col4 = st.columns(4)
     with perf_col1:
         # Calculate Sharpe ratio from equity history
+        sharpe: float = 0.0
         eq_hist = state.get("equity_history", [])
         if len(eq_hist) > 10:
-            eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"])
-            eq_df["returns"] = eq_df["equity"].pct_change().dropna()
-            sharpe = (eq_df["returns"].mean() / eq_df["returns"].std() * (365**0.5)) if eq_df["returns"].std() > 0 else 0
-        else:
-            sharpe = 0
+            # Handle both dict format and list format
+            eq_df = None
+            if eq_hist and isinstance(eq_hist[0], dict):
+                eq_df = pd.DataFrame(eq_hist)
+                if "timestamp" in eq_df.columns:
+                    eq_df["ts"] = pd.to_datetime(eq_df["timestamp"])
+            elif eq_hist and isinstance(eq_hist[0], (list, tuple)) and len(eq_hist[0]) == 2:
+                eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"])
+            # Compute Sharpe if we have a valid DataFrame with equity column
+            if eq_df is not None and "equity" in eq_df.columns:
+                rets = eq_df["equity"].pct_change().dropna()
+                if rets.std() > 0:
+                    sharpe = float(rets.mean() / rets.std() * (365 ** 0.5))
         st.metric("Sharpe Ratio", f"{sharpe:.2f}")
     
     with perf_col2:
-        # Maximum consecutive wins/losses
-        perf = state.get("strategy_performance", {})
-        total_trades = sum(len(s.get("returns", [])) for s in perf.values())
-        st.metric("Total Trades", f"{total_trades}")
+        st.metric("Real Trades", f"{trade_count}", help="Actual executed trades, not simulated")
     
     with perf_col3:
-        # Calculate profit factor
-        if eq_hist and len(eq_hist) > 1:
-            gross_profit = sum(max(0, eq_hist[i][1] - eq_hist[i-1][1]) for i in range(1, len(eq_hist)))
-            gross_loss = sum(min(0, eq_hist[i][1] - eq_hist[i-1][1]) for i in range(1, len(eq_hist)))
-            profit_factor = abs(gross_profit / gross_loss) if gross_loss < 0 else float('inf')
-            st.metric("Profit Factor", f"{profit_factor:.2f}")
-        else:
-            st.metric("Profit Factor", "N/A")
+        # Calculate profit factor from actual trades
+        conn = sqlite3.connect(db_path)
+        try:
+            pnl_trades = query_df(conn, """
+                SELECT 
+                    (CASE WHEN o.side = 'SELL' THEN f.qty * f.price 
+                          ELSE -f.qty * f.price END) as trade_pnl
+                FROM fills f
+                JOIN orders o ON f.order_id = o.id
+            """)
+            
+            if not pnl_trades.empty and len(pnl_trades) > 0:
+                winning_trades = pnl_trades[pnl_trades['trade_pnl'] > 0]['trade_pnl'].sum()
+                losing_trades = abs(pnl_trades[pnl_trades['trade_pnl'] < 0]['trade_pnl'].sum())
+                profit_factor = winning_trades / losing_trades if losing_trades > 0 else float('inf')
+                st.metric("Profit Factor", f"{profit_factor:.2f}")
+            else:
+                st.metric("Profit Factor", "N/A")
+        finally:
+            conn.close()
     
     with perf_col4:
         # Max consecutive trades
@@ -349,7 +387,12 @@ def main() -> None:
             eq_hist = state.get("equity_history", [])
             if eq_hist and len(eq_hist) > 2:
                 try:
-                    eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"]).assign(ts=lambda d: pd.to_datetime(d.ts))
+                    # Handle both dict format and list format
+                    if isinstance(eq_hist[0], dict):
+                        eq_df = pd.DataFrame(eq_hist)
+                        eq_df["ts"] = pd.to_datetime(eq_df["timestamp"])
+                    else:
+                        eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"]).assign(ts=lambda d: pd.to_datetime(d.ts))
                     eq_df.set_index("ts", inplace=True)
                     eq_df["pnl_from_start"] = eq_df["equity"] - initial_equity
                     eq_df["pnl_pct"] = (eq_df["equity"] / initial_equity - 1) * 100
@@ -427,7 +470,12 @@ def main() -> None:
         with perf_ch1:
             # Returns distribution
             if eq_hist and len(eq_hist) > 10:
-                eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"])
+                # Handle both dict format and list format
+                if isinstance(eq_hist[0], dict):
+                    eq_df = pd.DataFrame(eq_hist)
+                    eq_df["ts"] = pd.to_datetime(eq_df["timestamp"])
+                else:
+                    eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"])
                 eq_df["returns"] = eq_df["equity"].pct_change().dropna() * 100
                 
                 st.write("**📊 Returns Distribution**")
@@ -500,7 +548,12 @@ def main() -> None:
         risk_col1, risk_col2 = st.columns(2)
         with risk_col1:
             if eq_hist and len(eq_hist) > 5:
-                eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"])
+                # Handle both dict format and list format
+                if isinstance(eq_hist[0], dict):
+                    eq_df = pd.DataFrame(eq_hist)
+                    eq_df["ts"] = pd.to_datetime(eq_df["timestamp"])
+                else:
+                    eq_df = pd.DataFrame(eq_hist, columns=["ts", "equity"])
                 eq_df["returns"] = eq_df["equity"].pct_change().dropna()
                 
                 # VaR calculation
@@ -584,5 +637,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

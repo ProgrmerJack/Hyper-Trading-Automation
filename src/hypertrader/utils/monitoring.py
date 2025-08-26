@@ -1,0 +1,99 @@
+"""Monitoring and anomaly detection utilities."""
+from __future__ import annotations
+
+from typing import Iterable
+import os
+
+import numpy as np
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
+from sklearn.ensemble import IsolationForest
+
+# Prometheus gauges for core risk metrics
+latency_gauge = Gauge("trade_latency_ms", "Execution latency in milliseconds")
+equity_gauge = Gauge("account_equity", "Current account equity")
+var_gauge = Gauge("portfolio_var", "Estimated value-at-risk")
+ws_ping_counter = Counter("ws_pings_total", "WebSocket pings sent")
+ws_pong_counter = Counter("ws_pongs_total", "WebSocket pongs received")
+ws_ping_rtt_histogram = Histogram(
+    "ws_ping_rtt_seconds",
+    "WebSocket ping-pong round trip time",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+)
+listenkey_refresh_counter = Counter(
+    "listenkey_refresh_total", "Binance listenKey refreshes"
+)
+ws_reconnect_counter = Counter("ws_reconnect_total", "WebSocket reconnects")
+rate_limit_throttle_counter = Counter(
+    "rate_limit_throttles_total", "Rate limiter throttles"
+)
+
+# Latency histograms for order lifecycle
+decision_ack_histogram = Histogram("decision_to_ack_seconds", "Time between trade decision and exchange acknowledgment", buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0))
+ack_fill_histogram = Histogram("ack_to_fill_seconds", "Time between order acknowledgment and fill", buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0))
+
+
+def start_metrics_server(port: int = 8000) -> None:
+    """Start a Prometheus metrics HTTP server.
+
+    The port can be overridden via the ``METRICS_PORT`` environment variable.
+    """
+    env_port = os.getenv("METRICS_PORT")
+    if env_port:
+        try:
+            port = int(env_port)
+        except Exception:
+            pass
+    start_http_server(port)
+
+
+def monitor_latency(value: float) -> None:
+    """Update the latency gauge."""
+    latency_gauge.set(value)
+
+
+def monitor_equity(value: float) -> None:
+    """Update the equity gauge."""
+    equity_gauge.set(value)
+
+
+def monitor_var(value: float) -> None:
+    """Update the VaR gauge."""
+    var_gauge.set(value)
+
+
+def detect_anomalies(metrics: Iterable[float]) -> np.ndarray:
+    """Detect anomalies in a sequence of metrics using Isolation Forest.
+
+    Parameters
+    ----------
+    metrics : Iterable[float]
+        Sequence of metric values such as latencies or PnL.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of labels ``1`` for normal observations and ``-1`` for anomalies.
+    """
+    arr = np.fromiter(metrics, dtype=float)
+    model = IsolationForest(contamination="auto")
+    return model.fit_predict(arr.reshape(-1, 1))
+
+
+__all__ = [
+    "start_metrics_server",
+    "monitor_latency",
+    "monitor_equity",
+    "monitor_var",
+    "detect_anomalies",
+    "latency_gauge",
+    "equity_gauge",
+    "var_gauge",
+    "ws_ping_counter",
+    "ws_pong_counter",
+    "ws_ping_rtt_histogram",
+    "listenkey_refresh_counter",
+    "ws_reconnect_counter",
+    "rate_limit_throttle_counter",
+    "decision_ack_histogram",
+    "ack_fill_histogram",
+]

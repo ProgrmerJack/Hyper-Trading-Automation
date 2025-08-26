@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Comprehensive backtest using the existing framework."""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
+
 import pandas as pd
 import numpy as np
-from pathlib import Path
 
 def run_comprehensive_backtest():
     """Run comprehensive backtest using existing framework."""
@@ -12,7 +15,7 @@ def run_comprehensive_backtest():
         from tests.backtest import run_backtest
         
         # Load real data
-        data = pd.read_csv("btc_real_data.csv", index_col=0, parse_dates=True)
+        data = pd.read_csv("data/btc_real_data.csv", index_col=0, parse_dates=True)
         print(f"[SUCCESS] Loaded {len(data)} candles")
         
         # Run backtest with different strategies
@@ -40,7 +43,7 @@ def run_vectorbt_backtest():
         import vectorbt as vbt
         
         # Load data
-        data = pd.read_csv("btc_real_data.csv", index_col=0, parse_dates=True)
+        data = pd.read_csv("data/btc_real_data.csv", index_col=0, parse_dates=True)
         close = data['close']
         
         # Simple moving average crossover strategy
@@ -70,7 +73,7 @@ def run_vectorbt_backtest():
 
 def simple_ma_backtest():
     """Simple moving average backtest."""
-    data = pd.read_csv("btc_real_data.csv", index_col=0, parse_dates=True)
+    data = pd.read_csv("data/btc_real_data.csv", index_col=0, parse_dates=True)
     
     # Calculate indicators
     data['ma_fast'] = data['close'].rolling(10).mean()

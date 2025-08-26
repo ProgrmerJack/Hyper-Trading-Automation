@@ -3,6 +3,7 @@
 
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
 
 def main():
     """Run backtesting based on command line arguments."""

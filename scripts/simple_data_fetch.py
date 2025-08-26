@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 def fetch_binance_data(symbol="BTC/USDT", timeframe="1h", days=30):
     """Fetch data directly from Binance."""
+    exchange = None
     try:
         exchange = ccxt.binance()
         
@@ -27,6 +28,15 @@ def fetch_binance_data(symbol="BTC/USDT", timeframe="1h", days=30):
     except Exception as e:
         print(f"[ERROR] Failed to fetch data: {e}")
         return None
+    finally:
+        # Safely close the exchange if a close() method exists
+        try:
+            if exchange is not None:
+                close_fn = getattr(exchange, "close", None)
+                if callable(close_fn):
+                    close_fn()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     # Fetch BTC data

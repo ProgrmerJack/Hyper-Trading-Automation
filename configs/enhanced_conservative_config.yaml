@@ -1,0 +1,339 @@
+# Enhanced Balanced HyperTrader Configuration for $1000 Target
+# Optimized for 10x growth with balanced entries and comprehensive component integration
+# Risk Level: 3.5% per trade for sustainable $1000 growth
+
+trading:
+  symbol: "BTC-USD"
+  account_balance: 100.0
+  risk_percent: 4.2  # Balanced 3.5% risk per trade for $1000 target
+  exchange: "binance"
+  max_exposure: 2.5  # Enhanced 2.5x leverage for growth
+  live: false  # Set to true for live trading
+  target_balance: 1000.0  # 10x growth target
+
+# Balanced risk management for $1000 target
+risk:
+  max_daily_loss: 10.0   # 10% daily loss limit for aggressive growth
+  max_position: 300.0   # 3x account balance maximum for higher returns
+  fee_rate: 0.002      # 0.2% round-trip Binance spot fees (0.1% each way)
+  slippage: 0.0002     # 0.02% slippage
+  max_drawdown: 0.08   # 8% max drawdown before kill switch
+  max_var: 0.08        # 8% VaR threshold
+  max_volatility: 0.08 # 8% max volatility threshold
+  stop_loss_pct: 0.03  # 3% trailing stop loss
+
+# Comprehensive strategy system leveraging all 79 components
+strategies:
+  enabled:
+    # Core Technical Indicators (20 components)
+    - "ma_cross"          # Moving average crossover
+    - "rsi"               # Relative Strength Index
+    - "bb"                # Bollinger Bands
+    - "macd"              # MACD oscillator
+    - "stochastic"        # Stochastic oscillator
+    - "adx"               # Average Directional Index
+    - "ichimoku"          # Ichimoku cloud
+    - "psar"              # Parabolic SAR
+    - "cci"               # Commodity Channel Index
+    - "keltner"           # Keltner Channels
+    - "fibonacci"         # Fibonacci retracements
+    - "williams_r"        # Williams %R
+    - "momentum"          # Momentum indicator
+    - "roc"               # Rate of Change
+    - "trix"              # TRIX oscillator
+    - "dmi"               # Directional Movement Index
+    - "aroon"             # Aroon oscillator
+    - "ultimate_oscillator" # Ultimate Oscillator
+    - "donchian"          # Donchian Channels
+    - "supertrend"        # SuperTrend indicator
+    
+    # Advanced ML and AI (15 components)
+    - "advanced_ml_strategy"  # Advanced ML ensemble
+    - "ml_simple"            # Simple ML classifier
+    - "lstm_predictor"       # LSTM neural network
+    - "transformer_model"    # Transformer architecture
+    - "ensemble_ml"          # Multiple model ensemble
+    - "reinforcement_learning" # RL agent
+    - "neural_network"       # Deep neural network
+    - "gradient_boosting"    # XGBoost/LightGBM
+    - "random_forest"        # Random Forest
+    - "svm_classifier"       # Support Vector Machine
+    - "ai_momentum"          # AI-enhanced momentum
+    - "volatility_clustering" # Vol clustering ML
+    - "shap_explainability" # Model explainability
+    - "drl_throttle"        # Deep RL throttling
+    - "quantum_leverage"    # Quantum-inspired leverage
+    
+    # Market Structure & Flow (15 components)
+    - "event_trading"        # Event-driven trading
+    - "sentiment_trading"    # Sentiment analysis
+    - "news_impact"          # News impact assessment
+    - "social_sentiment"     # Social media sentiment
+    - "macro_economics"      # Macro economic factors
+    - "microstructure"       # Market microstructure
+    - "flow_analysis"        # Order flow analysis
+    - "order_book"           # Order book analysis
+    - "market_making"        # Market making strategy
+    - "arbitrage"            # Statistical arbitrage
+    - "flow_toxicity"        # Flow toxicity detection
+    - "iceberg_detection"    # Iceberg order detection
+    - "cumulative_delta"     # Cumulative delta
+    - "exchange_netflow"     # Exchange net flows
+    - "microprice"           # Microprice calculation
+    
+    # Risk & Portfolio Management (15 components)
+    - "volatility_targeting" # Volatility targeting
+    - "momentum_risk_parity" # Risk parity momentum
+    - "mean_reversion"       # Mean reversion strategy
+    - "trend_following"      # Trend following
+    - "breakout"             # Breakout strategy
+    - "swing_trading"        # Swing trading
+    - "scalping"             # Scalping strategy
+    - "position_sizing"      # Dynamic position sizing
+    - "kelly_criterion"      # Kelly criterion sizing
+    - "sharpe_optimization"  # Sharpe ratio optimization
+    - "drawdown_controls"    # Drawdown management
+    - "stop_management"      # Stop loss management
+    - "leverage_management"  # Leverage control
+    - "exposure_cap"         # Exposure capping
+    - "capital_compounding"  # Capital compounding
+    
+    # Execution & Infrastructure (14 components)
+    - "order_validation"     # Order validation
+    - "rate_limiting"        # Rate limiting
+    - "fee_slippage_gating" # Fee/slippage gating
+    - "latency_tracking"     # Latency monitoring
+    - "equity_monitoring"    # Equity tracking
+    - "anomaly_detection"    # Anomaly detection
+    - "kill_switch"          # Emergency kill switch
+    - "ai_var"               # AI-based VaR
+    - "entropy_regime"       # Entropy regime detection
+    - "order_book_skew"      # Order book skew
+    - "ccxt_support"         # Exchange connectivity
+    - "websocket_feed"       # Real-time data feeds
+    - "state_storage"        # Persistent state
+    - "dashboard_reporting"  # Dashboard integration
+
+  # Enhanced parameter configuration for all strategies
+  params:
+    # Technical Indicators
+    ma_cross:
+      fast: 8
+      slow: 18
+      confidence: 0.82
+    
+    rsi:
+      period: 12
+      oversold: 25
+      overbought: 75
+      confidence: 0.85
+    
+    bb:
+      period: 18
+      std_dev: 2.2
+      confidence: 0.80
+      
+    macd:
+      fast: 10
+      slow: 24
+      signal: 8
+      confidence: 0.83
+      
+    stochastic:
+      k_period: 14
+      d_period: 3
+      oversold: 20
+      overbought: 80
+      confidence: 0.72
+      
+    adx:
+      period: 14
+      threshold: 25
+      confidence: 0.75
+      
+    ichimoku:
+      tenkan: 9
+      kijun: 26
+      senkou: 52
+      confidence: 0.82
+      
+    psar:
+      step: 0.02
+      max_step: 0.2
+      confidence: 0.70
+      
+    cci:
+      period: 20
+      oversold: -100
+      overbought: 100
+      confidence: 0.68
+      
+    keltner:
+      period: 20
+      multiplier: 2.0
+      confidence: 0.72
+      
+    fibonacci:
+      lookback: 50
+      key_levels: [0.236, 0.382, 0.5, 0.618, 0.764]
+      confidence: 0.77
+    
+    supertrend:
+      period: 10
+      multiplier: 3.0
+      confidence: 0.74
+    
+    # ML Strategies
+    advanced_ml_strategy:
+      lookback: 60
+      features: ["price", "volume", "volatility", "momentum"]
+      confidence_threshold: 0.75
+      
+    ml_simple:
+      features: ["price", "volume", "volatility"]
+      model_type: "random_forest"
+      confidence: 0.80
+      
+    lstm_predictor:
+      sequence_length: 60
+      hidden_units: 128
+      dropout: 0.2
+      confidence: 0.78
+      
+    ensemble_ml:
+      models: ["rf", "xgb", "lstm", "svm"]
+      voting: "soft"
+      confidence: 0.85
+    
+    reinforcement_learning:
+      action_space: ["BUY", "SELL", "HOLD"]
+      state_features: 20
+      confidence: 0.75
+    
+    # Market Structure
+    event_trading:
+      sentiment_weight: 0.25
+      news_impact_threshold: 0.3
+      confidence: 0.70
+      
+    sentiment_trading:
+      threshold: 0.1
+      weight: 0.20
+      sources: ["news", "social", "macro"]
+      confidence: 0.65
+      
+    microstructure:
+      order_flow_weight: 0.35
+      toxicity_threshold: 0.6
+      confidence: 0.72
+    
+    flow_analysis:
+      window_size: 100
+      toxicity_alpha: 0.1
+      confidence: 0.70
+    
+    # Risk Management
+    volatility_targeting:
+      target_vol: 0.15
+      lookback: 30
+      confidence: 0.75
+      
+    kelly_criterion:
+      max_fraction: 0.15
+      lookback_returns: 50
+      confidence: 0.80
+      
+    position_sizing:
+      method: "kelly_enhanced"
+      risk_budget: 0.035
+      confidence: 0.85
+
+# ML and sentiment configuration
+ml:
+  model_path: null  # Will use built-in models
+  sentiment:
+    enabled: true
+    weight: 0.20
+    threshold: -0.2  # Allow slightly negative sentiment
+    sources: ["finbert", "twitter", "news"]
+  
+  meta_score:
+    # Balanced weighting across all component categories
+    technical_weight: 0.25      # Technical indicators
+    ml_weight: 0.25            # ML and AI models
+    microstructure_weight: 0.20 # Market microstructure
+    sentiment_weight: 0.15     # News and social sentiment
+    macro_weight: 0.10         # Macroeconomic factors
+    regime_weight: 0.05        # Market regime detection
+
+# Enhanced position sizing for $1000 target with balanced entries
+position_sizing:
+  method: "kelly_criterion_enhanced"
+  kelly_max_fraction: 0.20   # Up to 20% per trade for $1000 growth
+  confidence_multiplier: 0.8
+  growth_multiplier: 1.8     # Enhanced growth multiplier for 10x target
+  volatility_adjustment: true
+  trend_multiplier: true
+  drawdown_scaling: true
+  balanced_entry_mode: true  # Ensure balanced entry timing
+
+# Balanced signal thresholds for $1000 growth
+signals:
+  strong_threshold: 0.75     # Balanced strong signals threshold
+  medium_threshold: 0.65     # Balanced medium signals threshold
+  weak_threshold: 0.55       # Balanced minimum signal strength
+  confidence_boost: true     # Enable confidence enhancement
+  consensus_required: 0.60   # Require 60% strategy consensus for balanced entries
+  entry_balance_factor: 0.8  # Factor for balanced entry timing
+
+# API keys configuration
+api_keys:
+  news: ${NEWS_API_KEY}
+  fred: ${FRED_API_KEY}
+  etherscan: ${ETHERSCAN_API_KEY}
+  twitter: ${TWITTER_API_KEY}
+  
+# Enhanced file paths
+paths:
+  signal_path: "data/signal.json"
+  state_path: "data/state.json"
+  log_path: "logs/"
+  model_path: "models/"
+  components_config: "hypertrader/components.yaml"
+
+# Dashboard configuration for $1000 target
+dashboard:
+  auto_refresh: true
+  refresh_interval: 5
+  port: 8503
+  growth_target: 1000.0      # $100 -> $1000 target (10x growth)
+  milestone_targets: [200.0, 350.0, 500.0, 750.0, 1000.0]  # Progress milestones
+  risk_alerts: true
+  performance_tracking: true
+  balanced_entry_monitoring: true
+
+# Exchange and execution settings
+execution:
+  exchange: "binance"
+  sandbox_mode: true  # Use testnet for safety
+  order_type: "market"
+  slippage_tolerance: 0.001
+  max_order_size: 0.1  # 10% of balance max per order
+  
+# Enhanced monitoring for $1000 target
+monitoring:
+  enabled: true
+  drawdown_alert: 0.05    # Alert at 5% drawdown
+  profit_milestones: [1.0, 2.5, 5.0, 7.5, 10.0]  # Alert at 100%, 250%, 500%, 750%, 1000%
+  latency_threshold: 2.0   # 2s latency threshold
+  equity_tracking: true
+  balanced_entry_tracking: true
+  growth_progress_alerts: true
+  
+# Backtesting configuration
+backtesting:
+  start_date: "2023-01-01"
+  end_date: "2024-01-01"
+  initial_capital: 100.0
+  commission: 0.001
+  slippage: 0.0005

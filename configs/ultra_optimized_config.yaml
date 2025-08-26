@@ -1,0 +1,214 @@
+# Ultra-Optimized HyperTrader Configuration for Maximum Returns
+# Aggressive parameters optimized for 10x+ growth with enhanced ML and sentiment analysis
+# Risk Level: 4.8% per trade with dynamic scaling
+
+trading:
+  symbol: "BTC-USD"
+  account_balance: 100.0
+  risk_percent: 4.8  # Aggressive 4.8% risk per trade for maximum growth
+  exchange: "binance"
+  max_exposure: 3.5  # 3.5x leverage for maximum returns
+  live: false  # Set to true for live trading
+  target_balance: 2000.0  # 20x growth target
+
+# Aggressive risk management for maximum returns
+risk:
+  max_daily_loss: 12.0   # 12% daily loss limit for aggressive growth
+  max_position: 400.0   # 4x account balance maximum for maximum returns
+  fee_rate: 0.0008      # 0.08% maker fees (optimistic)
+  slippage: 0.0001     # 0.01% slippage (tight spreads)
+  max_drawdown: 0.10   # 10% max drawdown before scaling back
+  max_var: 0.10        # 10% VaR threshold
+  max_volatility: 0.12 # 12% max volatility threshold
+  stop_loss_pct: 0.025  # 2.5% tight trailing stop loss
+  dynamic_sizing: true  # Enable dynamic position sizing
+
+# Ultra-comprehensive strategy system with all components
+strategies:
+  enabled:
+    # Core Technical Analysis (13 strategies)
+    - "indicator"            # Multi-indicator ensemble
+    - "ma_cross"            # Moving average crossover
+    - "rsi"                 # RSI momentum
+    - "bb"                  # Bollinger bands
+    - "macd"                # MACD divergence
+    - "stochastic"          # Stochastic oscillator
+    - "adx"                 # ADX trend strength
+    - "ichimoku"            # Ichimoku cloud
+    - "psar"                # Parabolic SAR
+    - "cci"                 # Commodity Channel Index
+    - "keltner"             # Keltner channels
+    - "fibonacci"           # Fibonacci retracements
+    - "event_trading"       # News/event-based signals
+    
+    # Advanced ML Strategies (8 strategies)
+    - "ml_simple"           # Simple ML classifier
+    - "ml_ensemble"         # Ensemble learning
+    - "ml_lstm"             # LSTM neural networks
+    - "ml_transformer"      # Transformer models
+    - "ml_reinforcement"    # RL agents
+    - "ml_sentiment"        # Sentiment analysis ML
+    - "ml_anomaly"          # Anomaly detection
+    - "ml_regime"           # Regime detection ML
+    
+    # Advanced Alpha Strategies (12 strategies)
+    - "pairs_trading"       # Statistical arbitrage
+    - "mean_reversion"      # Mean reversion signals
+    - "momentum_breakout"   # Momentum breakouts
+    - "volatility_trading"  # Volatility-based signals
+    - "arbitrage"           # Cross-exchange arbitrage
+    - "market_making"       # Market making signals
+    - "options_flow"        # Options flow signals
+    - "crypto_funding"      # Funding rate arbitrage
+    - "defi_yields"         # DeFi yield opportunities
+    - "on_chain"            # On-chain analysis
+    - "social_sentiment"    # Social media sentiment
+    - "macro_economic"      # Macro economic signals
+
+  # Ultra-optimized parameter configuration for maximum performance
+  params:
+    # Technical Indicators (more aggressive)
+    ma_cross:
+      fast: 6
+      slow: 15
+      confidence: 0.88
+    
+    rsi:
+      period: 10
+      oversold: 22
+      overbought: 78
+      confidence: 0.90
+    
+    bb:
+      period: 16
+      std_dev: 2.5
+      confidence: 0.85
+      
+    macd:
+      fast: 8
+      slow: 20
+      signal: 6
+      confidence: 0.87
+      
+    stochastic:
+      k_period: 12
+      d_period: 2
+      oversold: 18
+      overbought: 82
+      confidence: 0.80
+      
+    adx:
+      period: 12
+      threshold: 22
+      confidence: 0.82
+      
+    ichimoku:
+      tenkan: 7
+      kijun: 22
+      senkou: 44
+      confidence: 0.90
+      
+    psar:
+      step: 0.025
+      max_step: 0.25
+      confidence: 0.78
+      
+    cci:
+      period: 16
+      overbought: 120
+      oversold: -120
+      confidence: 0.75
+      
+    keltner:
+      period: 18
+      multiplier: 2.2
+      confidence: 0.80
+      
+    fibonacci:
+      lookback: 100
+      confidence: 0.75
+      
+    # ML Model Parameters
+    ml_simple:
+      features: 20
+      lookback: 50
+      confidence: 0.85
+      
+    ml_ensemble:
+      models: 5
+      features: 25
+      confidence: 0.90
+      
+    ml_lstm:
+      sequence_length: 60
+      hidden_units: 128
+      confidence: 0.88
+      
+    # Advanced Strategy Parameters
+    pairs_trading:
+      correlation_threshold: 0.85
+      zscore_threshold: 2.2
+      confidence: 0.82
+      
+    mean_reversion:
+      lookback: 20
+      zscore_threshold: 2.0
+      confidence: 0.80
+      
+    momentum_breakout:
+      breakout_threshold: 0.025
+      volume_confirm: true
+      confidence: 0.85
+
+# Performance optimization settings
+optimization:
+  adaptive_parameters: true      # Enable parameter adaptation
+  performance_feedback: true     # Use performance feedback
+  regime_aware: true            # Adapt to market regimes
+  volatility_scaling: true      # Scale with volatility
+  correlation_filter: true      # Filter correlated signals
+  kelly_criterion: true         # Use Kelly sizing
+  max_correlation: 0.7          # Maximum signal correlation
+  rebalance_frequency: "1h"     # Rebalance every hour
+  
+# Live trading configuration
+live_trading:
+  exchange: "binance"
+  sandbox_mode: false  # Use live trading
+  order_type: "market"
+  slippage_tolerance: 0.0005
+  max_order_size: 0.15  # 15% of balance max per order
+  api_rate_limit: 100   # Requests per minute
+  
+# Monitoring and alerts
+monitoring:
+  log_level: "INFO"
+  save_state_freq: 60    # Save state every 60 seconds
+  dashboard_update_freq: 5  # Update dashboard every 5 seconds
+  performance_tracking: true
+  risk_monitoring: true
+  latency_monitoring: true
+  
+alerts:
+  enabled: true
+  channels: ["discord", "telegram", "email"]
+  triggers:
+    - "drawdown > 8%"
+    - "daily_loss > 10%"
+    - "position_size > 350"
+    - "latency > 2.0"
+    - "profit_target_hit"
+    - "stop_loss_hit"
+    - "new_high_equity"
+
+# Backtesting configuration
+backtesting:
+  start_date: "2023-01-01"
+  end_date: "2024-12-31"
+  initial_capital: 100.0
+  commission: 0.0008
+  slippage: 0.0001
+  benchmark: "BTC-USD"
+  metrics_enabled: true
+  save_results: true
+  detailed_logs: true
