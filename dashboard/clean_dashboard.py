@@ -122,41 +122,60 @@ def main():
     
     # Account Overview
     st.subheader("💰 Account Overview")
-    
+
+    # Starting balance from state or default
     account_balance = state.get('original_balance', 100.0)
-    current_equity = state.get('current_equity', account_balance)
-    simulated_pnl = state.get('simulated_pnl', 0.0)
     peak_equity = state.get('peak_equity', account_balance)
-    
-    # Calculate metrics
-    total_pnl = current_equity - account_balance
-    pnl_percentage = (total_pnl / account_balance * 100) if account_balance > 0 else 0
-    drawdown = ((peak_equity - current_equity) / peak_equity * 100) if peak_equity > 0 else 0
-    
+
+    # Compute realized P&L and trade count from the OMS database
+    realized_pnl = 0.0
+    trade_count = 0
+    conn_tmp = get_database_connection(db_path)
+    if conn_tmp is not None:
+        try:
+            pnl_df = safe_query(conn_tmp, (
+                "SELECT "
+                "COALESCE(SUM(CASE WHEN o.side = 'SELL' THEN f.qty * f.price "
+                "ELSE -f.qty * f.price END), 0) as realized_pnl, "
+                "COUNT(DISTINCT f.order_id) as total_trades "
+                "FROM fills f JOIN orders o ON f.order_id = o.id"
+            ))
+            if not pnl_df.empty:
+                realized_pnl = float(pnl_df.iloc[0]['realized_pnl'])
+                trade_count = int(pnl_df.iloc[0]['total_trades'])
+        finally:
+            conn_tmp.close()
+
+    # Current equity is starting balance plus realized P&L
+    current_equity = account_balance + realized_pnl
+    total_pnl = realized_pnl
+    pnl_percentage = (total_pnl / account_balance * 100) if account_balance > 0 else 0.0
+    drawdown = ((peak_equity - current_equity) / peak_equity * 100) if peak_equity > 0 else 0.0
+
     # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         st.metric(
             "Current Balance", 
             f"${current_equity:.2f}",
             delta=f"${total_pnl:.2f}" if total_pnl != 0 else None
         )
-    
+
     with col2:
         st.metric(
             "Total P&L", 
             f"{pnl_percentage:+.2f}%",
             delta=f"${total_pnl:.2f}" if total_pnl != 0 else None
         )
-    
+
     with col3:
         st.metric(
             "Peak Equity", 
             f"${peak_equity:.2f}",
             delta=None
         )
-    
+
     with col4:
         color = "normal"
         if drawdown > 3:

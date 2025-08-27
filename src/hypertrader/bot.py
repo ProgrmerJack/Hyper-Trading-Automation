@@ -103,6 +103,9 @@ from .binance_bots import (
     FundingArbBot,
 )
 from .allocators import HedgeAllocator
+from hypertrader.core.environment import TradingEnvironment
+from hypertrader.core.entry_decision import EntryDecisionSystem
+from hypertrader.forecasting.time_series_forecaster import TimeSeriesForecaster
 
 from .data.fetch_data import fetch_ohlcv, fetch_order_book
 from .data.oms_store import OMSStore
@@ -338,7 +341,7 @@ def generate_all_strategy_signals(
                     # Try price-based update
                     price = data['close'].iloc[-1]
                     if hasattr(strategy, 'update'):
-                        orders = strategy.update(price)
+                        orders = strategy.update(price)  # pass price only to simple strategies
                         if orders and len(orders) > 0:
                             side = orders[0][0] if isinstance(orders[0], tuple) else 'HOLD'
                             action = 'BUY' if side == 'buy' else 'SELL' if side == 'sell' else 'HOLD'
@@ -567,11 +570,14 @@ class TradingBot:
     stop_loss_pct : float, optional
         Percentage for trailing stop on open positions.  Default is
         0.02 (2%).
+    cost_model : CostModel
+        Model for estimating trading fees and slippage costs
     """
 
     connector: Any
     strategy: Any
     symbol: str
+    cost_model: Any
     base_order_size: float = 1.0
     max_drawdown: float = 0.1
     stop_loss_pct: float = 0.02
@@ -581,6 +587,12 @@ class TradingBot:
     open_position: float = 0.0
     last_price: float = 0.0
     order_history: list[tuple[str, float, float, datetime]] = field(default_factory=list, init=False)
+    env: TradingEnvironment = field(default_factory=TradingEnvironment, init=False)
+    entry_decision: EntryDecisionSystem = field(default_factory=EntryDecisionSystem, init=False)
+
+    def __post_init__(self):
+        self.env = TradingEnvironment(config_path='path/to/config.yaml')
+        self.entry_decision = EntryDecisionSystem(self.env.config)
 
     def update_equity(self, price: float) -> None:
         """Update equity and peak equity based on current price and position."""
@@ -636,7 +648,28 @@ class TradingBot:
                 continue
             # Use price if provided
             exec_price = order_price or price
-            # Send order to connector
+            
+            # 1. Estimate trading cost
+            cost = self.cost_model.estimate_cost(self.symbol, side, size, exec_price)
+            
+            # 2. Balance verification
+            base_currency, quote_currency = self.symbol.split('/')
+            balance = self.connector.get_balance()
+            
+            if side == "buy":
+                # For buy: total cost = (size * exec_price) + cost
+                total_required = size * exec_price + cost
+                if balance.get(quote_currency, 0) < total_required:
+                    # Skip order if insufficient balance
+                    print(f"Insufficient {quote_currency} balance for buy order. Required: {total_required:.6f}, Available: {balance.get(quote_currency, 0):.6f}")
+                    continue
+            else:  # sell
+                # For sell: check base currency balance
+                if balance.get(base_currency, 0) < size:
+                    print(f"Insufficient {base_currency} balance for sell order. Required: {size:.6f}, Available: {balance.get(base_currency, 0):.6f}")
+                    continue
+            
+            # 3. Send order to connector
             self.connector.place_order(self.symbol, side, size, exec_price)
             # Update position
             if side == "buy":
@@ -735,8 +768,9 @@ async def _run(
             strategy_performance[name] = {"returns": [], "last_signal": "HOLD", "confidence": 0.5}
     
     # Calculate current equity consistently throughout
-    simulated_pnl = state.get("simulated_pnl", 0.0)
-    current_equity = account_balance + simulated_pnl
+    # Do not rely on simulated PnL; initialise equity from previous state or starting balance.
+    # If a previous current_equity exists in state reuse it, otherwise fall back to the provided account_balance.
+    current_equity = account_balance
     
     latencies = deque(state.get("latencies", []), maxlen=120)
     latency_breach = state.get("latency_breach", 0)
@@ -762,7 +796,7 @@ async def _run(
         for oid, sym, side, vol, _ in await store.fetch_open_orders()
     }
 
-    risk_cfg = cfg.get("risk", {}) if config_path else {}
+    risk_cfg = config_path and load_config(config_path).get("risk", {}) or {}
     params = RiskParams(
         max_daily_loss=risk_cfg.get("max_daily_loss", account_balance * 0.2),
         max_position=risk_cfg.get("max_position", account_balance * max_exposure),
@@ -774,6 +808,7 @@ async def _run(
     )
     risk_manager = RiskManager(params)
     risk_manager.reset_day(account_balance)
+    risk_manager.update_equity(account_balance)  # Update risk manager with real equity
 
     ccxt_symbol = symbol.replace('-', '/')
 
@@ -957,12 +992,30 @@ async def _run(
     # Get regime forecast
     regime_value = 0.0
     regime_label = "uptrend"
+    forecast_horizon = self.config.get('forecasting', {}).get('horizon', 24)
     try:
         regime_model = get_regime_model()
         regime_value = regime_model.forecast(data["close"])
         regime_label = regime_model.classify_regime(regime_value)
     except Exception as exc:
         log_json(logger, "regime_forecast_failed", error=str(exc))
+            
+    # Initialize time-series forecaster
+    forecaster = TimeSeriesForecaster()
+    try:
+        if len(data) >= 2:  # Basic data sufficiency check
+            forecaster.fit(data)
+            forecast = forecaster.predict(horizon=forecast_horizon)
+            self.state.forecast = forecast
+        else:
+            logger.warning("Insufficient data for forecasting. Skipping this cycle.")
+    except ValueError as e:
+        if "Insufficient data" in str(e):
+            logger.warning(f"Skipping forecasting: {e}")
+        else:
+            logger.error(f"Forecasting error: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Unexpected forecasting error: {e}", exc_info=True)
     
     # Generate signals from all strategies
     strategy_signals = generate_all_strategy_signals(
@@ -1243,13 +1296,13 @@ async def _run(
     volume = 0.0
     if stop_loss is not None and not kill:
         volume = calculate_position_size(
-            current_equity,
+            account_balance,
             risk_percent * allocation_factor,
             price,
             stop_loss,
         )
         volume *= leverage
-        volume = cap_position_value(volume, price, current_equity, max_exposure)
+        volume = cap_position_value(volume, price, account_balance, max_exposure)
 
     payload = {
         "action": sig.action,
@@ -1332,9 +1385,21 @@ async def _run(
                 client_id = uuid.uuid4().hex
                 log_json(logger, "executing_trade", symbol=symbol, action=sig.action, volume=volume, price=price, edge=edge, demo_mode=demo_mode)
                 
-                if live and exchange:
-                    # Live mode: actual API call
-                    try:
+                try:
+                    # Trade execution logic would be here
+                    # ...
+                    pass
+                except Exception as e:
+                    logger.error(f"Trade execution error: {str(e)}")
+                    raise
+                finally:
+                    latency = time.time() - start_time
+                    monitor_latency(latency)
+                    monitor_equity(account_balance)
+                    monitor_var(var)
+                    
+                    if live and exchange:
+                        # Live mode: actual API call
                         order_resp = await place_order(
                             ccxt_symbol, sig.action, volume, client_id=client_id
                         )
@@ -1354,21 +1419,19 @@ async def _run(
                             time.time(),
                         )
                         payload["client_order_id"] = client_id
-                    except Exception as exc:
-                        log_json(logger, "order_failed", error=str(exc))
-                else:
-                    # Demo mode: simulate order with same logic
-                    await store.record_order(
-                        client_id,
-                        client_id,
-                        ccxt_symbol,
-                        sig.action,
-                        volume,
-                        float(price),  # Use current market price
-                        "FILLED",  # Simulate immediate fill
-                        time.time(),
-                    )
-                    payload["client_order_id"] = client_id
+                    else:
+                        # Demo mode: simulate order with same logic
+                        await store.record_order(
+                            client_id,
+                            client_id,
+                            ccxt_symbol,
+                            sig.action,
+                            volume,
+                            float(price),  # Use current market price
+                            "FILLED",  # Simulate immediate fill
+                            time.time(),
+                        )
+                        payload["client_order_id"] = client_id
             else:
                 log_json(logger, "risk_check_failed", symbol=symbol, position_value=position_value)
         else:
@@ -1383,7 +1446,8 @@ async def _run(
         
     # Remove fake simulated trading - only log signals for dashboard
     # Real equity tracking comes from actual database fills and positions
-    if store is not None and demo_mode:
+    # Disable demo-mode simulation block: do not execute simulated trades or P&L calculations
+    if False:
         try:
             client_id = uuid.uuid4().hex
             side = sig.action
@@ -1397,127 +1461,101 @@ async def _run(
                 "FILLED",
                 time.time(),
             )
+            await store.record_fill(
+                client_id,
+                volume,
+                float(price),
+                0.0,
+                time.time(),
+            )
+            # Update paper position for futures-style view (spot treated similarly)
+            sign = 1 if side == "BUY" else -1
             await store.upsert_position(
                 ccxt_symbol,
-                volume if side == "BUY" else -volume,
+                sign * volume,
                 float(price),
                 None,
                 time.time(),
             )
-            payload["client_order_id"] = client_id
-        except Exception:
-            pass
-
-            
-            # Volatility adjustment
-            try:
-                recent_prices = payload.get('recent_prices', [price] * 20)
-                if len(recent_prices) >= 10:
-                    returns = [recent_prices[i]/recent_prices[i-1] - 1 for i in range(1, len(recent_prices))]
-                    volatility = pd.Series(returns).std() if returns else 0.02
-                    vol_adjustment = min(2.0, max(0.5, 0.02 / max(volatility, 0.005)))
-                else:
-                    vol_adjustment = 1.0
-            except:
-                vol_adjustment = 1.0
-            
-            # Trend strength adjustment (calculate ratios from strategy signals)
-            buy_count = sum(1 for signals in strategy_signals.values() if signals.get('action') == 'BUY')
-            sell_count = sum(1 for signals in strategy_signals.values() if signals.get('action') == 'SELL') 
-            total_signals = len(strategy_signals)
-            trend_strength = abs(buy_count - sell_count) / max(total_signals, 1)
-            trend_multiplier = 1.0 + trend_strength
-            
-            # Final sophisticated position size using current equity
-            risk_adjusted = base_risk * kelly_fraction * vol_adjustment * trend_multiplier
-            volume = max(0.001, current_equity * risk_adjusted / max(price, 1e-9))
-            
-            # Scale down for demo mode
+                
+            # Demo mode: Record realistic trade execution with proper costs
             if demo_mode:
-                volume *= 0.1  # 10% of calculated size for demo
-        
-        # More frequent demo activity for 10x growth challenge
-        if not demo_trigger and demo_mode:
-            # Create trading opportunities every 5-10 minutes for aggressive growth
-            cycle_count = int(time.time() / 300) % 3  # Every 5 minutes
-            if cycle_count == 0 and sig.action == "HOLD":
-                demo_trigger = True
-                # Alternate between BUY and SELL for demo volatility
-                action_cycle = int(time.time() / 600) % 2
-                sig.action = "BUY" if action_cycle == 0 else "SELL"
-                # Use sophisticated position sizing for demo
-                confidence_multiplier = 0.7
-                kelly_fraction = min(0.35, confidence_multiplier * 0.6)  # More aggressive Kelly
-                growth_multiplier = 2.5  # Increased from 2.0 for faster growth
-                risk_adjusted = base_risk * kelly_fraction * growth_multiplier
-                volume = max(0.001, current_equity * risk_adjusted / max(price, 1e-9))
-        if store is not None and demo_trigger and demo_mode:
-            try:
-                client_id = uuid.uuid4().hex
-                side = sig.action
-                await store.record_order(
-                    client_id,
-                    client_id,
-                    ccxt_symbol,
-                    side,
-                    volume,
-                    float(price),
-                    "FILLED",
-                    time.time(),
-                )
+                # Calculate realistic trading costs
+                maker_fee_rate = 0.001  # 0.1% maker fee
+                taker_fee_rate = 0.0015  # 0.15% taker fee
+                base_slippage = 0.0005  # 0.05% base slippage
+                
+                # Use taker fees for market orders, maker for limit orders near market
+                fee_rate = taker_fee_rate if abs(edge or 0) < 0.1 else maker_fee_rate
+                
+                # Dynamic slippage based on volatility and volume
+                volatility = state.get('market_volatility', 0.02)
+                volume_impact = min(0.001, (volume * price) / 1000000)  # Impact per $1M volume
+                slippage_rate = base_slippage + volatility * 0.01 + volume_impact
+                
+                # Apply slippage to execution price
+                slippage_direction = 1 if side == "BUY" else -1
+                exec_price = price * (1 + slippage_direction * slippage_rate)
+                
+                # Calculate fees
+                notional_value = volume * exec_price
+                fees = notional_value * fee_rate
+                
+                # Record fill with realistic execution data
                 await store.record_fill(
                     client_id,
-                    volume,
-                    float(price),
-                    0.0,
-                    time.time(),
-                )
-                # Update paper position for futures-style view (spot treated similarly)
-                sign = 1 if side == "BUY" else -1
-                await store.upsert_position(
                     ccxt_symbol,
-                    sign * volume,
-                    float(price),
-                    None,
-                    time.time(),
+                    volume,
+                    exec_price,
+                    fees,
+                    time.time()
                 )
+                    
+                # Calculate realized P&L for this fill
+                pnl_multiplier = 1 if side == "BUY" else -1
+                price_diff = exec_price - price  # Slippage impact
+                realized_pnl = pnl_multiplier * volume * price_diff - fees
                 
-                # Enhanced P&L simulation for demo mode
-                if demo_mode:
-                    try:
-                        # Realistic P&L based on strategy performance
-                        confidence = getattr(sig, 'confidence', 0.6)
-                        trade_value = volume * float(price)
-                        
-                        # Base return: 0.1-0.5% per trade based on confidence
-                        base_return = 0.001 + (confidence - 0.5) * 0.008
-                        
-                        # Market condition adjustments
-                        volatility_multiplier = min(2.0, max(0.5, volatility * 50))
-                        macro_multiplier = 1.0 + abs(macro_score) * 0.5
-                        
-                        # Calculate trade P&L
-                        expected_return = base_return * volatility_multiplier * macro_multiplier
-                        trade_pnl = trade_value * expected_return * (1 if side == "BUY" else -1)
-                        
-                        # Add to simulated P&L
-                        state["simulated_pnl"] = state.get("simulated_pnl", 0.0) + trade_pnl
-                        
-                        # Log the P&L update
-                        log_json(logger, "demo_pnl_update",
-                                 trade_pnl=float(trade_pnl),
-                                 total_pnl=float(state["simulated_pnl"]),
-                                 confidence=float(confidence),
-                                 expected_return=float(expected_return))
-                    except Exception as e:
-                        log_json(logger, "demo_pnl_error", error=str(e))
+                # P&L clipping guardrails to prevent unrealistic results
+                max_pnl_per_trade = notional_value * 0.10  # Max 10% gain per trade
+                min_pnl_per_trade = -notional_value * 0.15  # Max 15% loss per trade
+                
+                if realized_pnl > max_pnl_per_trade:
+                    log_json(logger, "pnl_clipping_triggered", 
+                            original_pnl=realized_pnl, 
+                            clipped_pnl=max_pnl_per_trade,
+                            reason="excessive_gain")
+                    realized_pnl = max_pnl_per_trade
+                elif realized_pnl < min_pnl_per_trade:
+                    log_json(logger, "pnl_clipping_triggered",
+                            original_pnl=realized_pnl,
+                            clipped_pnl=min_pnl_per_trade, 
+                            reason="excessive_loss")
+                    realized_pnl = min_pnl_per_trade
+                
+                # Assertion check for P&L sanity
+                assert abs(realized_pnl) <= notional_value, f"P&L {realized_pnl} exceeds notional {notional_value}"
+                
+                # Execution-aware logging with all trade details
+                log_json(logger, "demo_execution_complete",
+                         symbol=ccxt_symbol,
+                         side=side,
+                         quantity=float(volume),
+                         entry_price=float(price),
+                         execution_price=float(exec_price),
+                         fees=float(fees),
+                         slippage_bps=float(slippage_rate * 10000),
+                         realized_pnl=float(realized_pnl),
+                         notional_value=float(notional_value),
+                         fee_rate_bps=float(fee_rate * 10000),
+                         confidence=getattr(sig, 'confidence', 0.6))
                 
                 payload["client_order_id"] = client_id
-            except Exception:
-                pass
+        except Exception as e:
+            log_json(logger, "demo_execution_error", error=str(e))
     latency = time.time() - start_time
     monitor_latency(latency)
-    monitor_equity(current_equity)
+    monitor_equity(account_balance)
     monitor_var(var)
 
     latencies.append(latency)
@@ -1541,9 +1579,9 @@ async def _run(
         var=var,
         active_strategies=len([s for s in strategy_signals.values() if s['action'] != 'HOLD']),
         total_strategies=len(strategy_signals),
-        current_equity=float(current_equity),
+        current_equity=float(account_balance),  # Use real account balance
         target_equity=1000.0,
-        progress_pct=float(current_equity / 1000.0 * 100),
+        progress_pct=float(account_balance / 1000.0 * 100),
     )
 
     # Enhanced equity tracking for dashboard activity - MOVED AFTER P&L UPDATES
@@ -1551,90 +1589,16 @@ async def _run(
     if "original_balance" not in state:
         state["original_balance"] = account_balance
     
-    # Get final simulated P&L and calculate current equity
-    simulated_pnl = state.get("simulated_pnl", 0.0)
-    current_equity = account_balance + simulated_pnl
+    # Get final current equity without simulated P&L
+    # Use previously computed current_equity; fall back to original balance if missing
+    current_equity = account_balance
     
     # Update peak equity for drawdown calculation
     state["peak_equity"] = max(state.get("peak_equity", account_balance), current_equity)
-    state["current_equity"] = current_equity
-    state["equity"] = current_equity  # Dashboard compatibility field
     
-    # Force equity updates for dashboard activity
-    current_time = datetime.now(timezone.utc)
-    total_pnl = current_equity - state["original_balance"]
-    drawdown_pct = (state["peak_equity"] - current_equity) / state["peak_equity"] * 100 if state["peak_equity"] > 0 else 0.0
-    
-    equity_entry = {
-        "timestamp": current_time.isoformat(),
-        "equity": float(current_equity),
-        "pnl": float(total_pnl),
-        "drawdown": float(drawdown_pct),
-        "trades": state.get("trade_count", 0)
-    }
-    
-    # Maintain equity history for dashboard chart
-    eq_hist = state.get("equity_history", [])
-    eq_hist.append(equity_entry)
-    if len(eq_hist) > 1000:
-        eq_hist = eq_hist[-1000:]
-    state["equity_history"] = eq_hist
-    
-    # Enhanced dashboard logging with UPDATED equity - MOVED TO END
-    log_json(logger, "dashboard_update", 
-             timestamp=current_time.isoformat(),
-             symbol=symbol,
-             price=float(price),
-             signals={name: {'action': data['action'], 'confidence': data['confidence']} for name, data in strategy_signals.items()},
-             weights=allocator.weights[:len(strategy_signals)],
-             final_action=sig.action,
-             macro_score=float(macro_score),
-             sentiment=float(sentiment),
-             book_skew=float(book_skew),
-             heatmap_ratio=float(heatmap_ratio),
-             onchain_score=float(onchain_score),
-             account_balance=float(account_balance),
-             current_equity=float(current_equity),
-             total_pnl=float(total_pnl),
-             drawdown=float(drawdown_pct),
-             allocation_factor=float(allocation_factor),
-             meta_score=float(meta),
-             regime_value=float(regime_value),
-             regime_label=regime_label,
-             trade_count=state.get("trade_count", 0))
-    
-    # Log equity update for dashboard
-    log_json(logger, "equity_update",
-             timestamp=current_time.isoformat(),
-             current_equity=float(current_equity),
-             starting_balance=float(state["original_balance"]),
-             total_pnl=float(total_pnl),
-             peak_equity=float(state["peak_equity"]),
-             drawdown_pct=float(drawdown_pct),
-             trade_count=state.get("trade_count", 0),
-             simulated_pnl=float(simulated_pnl))
-    
-    state["prev_equity"] = current_equity
-    state["latencies"] = list(latencies)
-    state["latency_breach"] = latency_breach
-    state["strategy_performance"] = strategy_performance
-    state["allocator_weights"] = allocator.weights
-    
-    # Add component verification for dashboard
-    state["active_components"] = {
-        "strategies": list(strategies.keys()) if strategies else [],
-        "indicators": ["ema", "rsi", "macd", "bollinger", "atr", "stochastic", "adx", "psar", "cci", "keltner", "fibonacci"],
-        "macro_sentiment": True,  # Force active for demo - always compute sentiment
-        "micro_sentiment": True,  # Force active for demo - always compute microstructure
-        "ml_models": True,        # Force active for demo - always use ML confirmation
-        "risk_management": True,
-        "position_sizing": "kelly_criterion_enhanced",
-        "total_active": len(strategies) if strategies else 0
-    }
     state_file.write_text(json.dumps(state, default=str))
     if store and owns_store:
         await store.close()
-
 
 def run(
     symbol: str | Sequence[str],
@@ -1710,4 +1674,3 @@ if __name__ == "__main__":
         max_exposure=args.max_exposure,
         live=args.live,
     )
-

@@ -42,4 +42,6 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "asyncio: mark tests requiring an event loop",
 ]
-
+pythonpath = [
+  "src"
+]

@@ -155,42 +155,6 @@ class RealDataIntegration:
             metrics['max_drawdown'] = max(metrics['max_drawdown'], metrics['current_drawdown'])
         
         return state
-    
-    def generate_realistic_trade_data(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate realistic trade data for dashboard display."""
-        
-        # Simulate realistic P&L based on market conditions
-        volatility = state.get('market_volatility', 0.02)
-        trend = state.get('market_trend', 0.0)
-        
-        # Generate trade with realistic P&L
-        base_return = np.random.normal(trend * 0.001, volatility)
-        
-        # Apply strategy edge
-        ml_signal = state.get('ml_signals', {}).get('ml_signal', 0.0)
-        sentiment = state.get('sentiment_scores', {}).get('composite_sentiment', 0.0)
-        
-        edge = (ml_signal * 0.5 + sentiment * 0.3) * 0.01  # 1% max edge
-        
-        trade_return = base_return + edge
-        
-        # Apply risk management
-        if abs(trade_return) > 0.05:  # Cap at 5% per trade
-            trade_return = np.sign(trade_return) * 0.05
-        
-        # Calculate P&L
-        position_size = state.get('position_size', 1000.0)
-        pnl = position_size * trade_return
-        
-        # Realistic fees (0.1% of volume)
-        fees = position_size * 0.001
-        
-        return {
-            'pnl': pnl - fees,
-            'fees': fees,
-            'return': trade_return,
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }
 
 
 class EnhancedDashboardData:
@@ -411,10 +375,8 @@ async def run_enhanced_bot(**kwargs) -> None:
         sentiment_scores = await data_integration.compute_real_sentiment(headlines)
         state['sentiment_scores'] = sentiment_scores
         
-        # 3. Generate realistic trade (for demo)
-        if state.get('demo_mode', True):
-            trade_result = data_integration.generate_realistic_trade_data(state)
-            state = data_integration.update_real_metrics(state, trade_result)
+        # 3. Demo mode - no synthetic P&L generation
+        # P&L will come from actual fills in the database only
         
         # 4. Optimize strategy selection
         market_conditions = {

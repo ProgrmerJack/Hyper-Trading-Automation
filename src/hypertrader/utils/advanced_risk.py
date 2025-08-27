@@ -112,6 +112,8 @@ class AdvancedRiskManager:
 
         # Performance tracking
         self.trades: List[float] = []
+        self.wins = 0
+        self.total_trades = 0
         self.consecutive_wins: int = 0
         self.consecutive_losses: int = 0
 
@@ -130,10 +132,7 @@ class AdvancedRiskManager:
         completed trades.  If no trades have been recorded, returns
         ``0.5`` as a neutral default.
         """
-        if not self.trades:
-            return 0.5
-        wins = sum(1 for t in self.trades if t > 0)
-        return wins / len(self.trades)
+        return self.wins / self.total_trades if self.total_trades > 0 else 0.0
 
     def update_market(self, price: float) -> None:
         """Update the market price history and compute volatility.
@@ -163,39 +162,24 @@ class AdvancedRiskManager:
                 var = sum((r - mean_ret) ** 2 for r in returns) / (len(returns) - 1)
                 self.volatility = math.sqrt(var)
 
-    def update_equity(self, pnl: float) -> None:
-        """Update the account equity by adding ``pnl``.
-
-        Also updates the peak equity used to compute drawdowns.
-
-        Parameters
-        ----------
-        pnl : float
-            Profit or loss realised on the most recent trade or period.
-        """
-        self.equity += float(pnl)
+    def update_equity(self, real_equity: float) -> None:
+        """Update equity from real account balance"""
+        self.equity = real_equity
         if self.equity > self.peak_equity:
             self.peak_equity = self.equity
 
-    def record_trade(self, pnl: float) -> None:
-        """Record the outcome of a completed trade and update performance metrics.
-
-        This method should be called each time a trade is closed.  It
-        tracks the number of consecutive wins or losses and stores the
-        PnL for win rate estimation.  If ``pyramiding`` or
-        ``anti_martingale`` is enabled, this information is used to
-        adjust position sizing in :meth:`calculate_position_size`.
-
-        Parameters
-        ----------
-        pnl : float
-            Profit (positive) or loss (negative) from the trade.
-        """
-        self.trades.append(float(pnl))
-        if pnl > 0:
+    def record_trade(self, real_pnl: float) -> None:
+        """Record real trade P&L from exchange"""
+        self.trades.append(float(real_pnl))
+        # Update win rate and other metrics based on real P&L
+        if real_pnl > 0:
+            self.wins += 1
+        self.total_trades += 1
+        self.win_rate = self.wins / self.total_trades if self.total_trades > 0 else 0.0
+        if real_pnl > 0:
             self.consecutive_wins += 1
             self.consecutive_losses = 0
-        elif pnl < 0:
+        elif real_pnl < 0:
             self.consecutive_losses += 1
             self.consecutive_wins = 0
 

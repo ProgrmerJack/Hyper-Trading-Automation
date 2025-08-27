@@ -45,6 +45,11 @@ class RiskManager:
         """Reset the starting equity, typically at the beginning of a session."""
         self.starting_equity = equity
 
+    def update_equity(self, equity: float) -> None:
+        """Update current equity for risk calculations."""
+        if self.starting_equity is None:
+            self.reset_day(equity)
+
     def check_order(
         self, equity: float, symbol: str, position_value: float, edge: float
     ) -> bool:

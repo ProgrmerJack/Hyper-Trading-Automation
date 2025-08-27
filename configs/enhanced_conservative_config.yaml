@@ -337,3 +337,12 @@ backtesting:
   initial_capital: 100.0
   commission: 0.001
   slippage: 0.0005
+
+# Binance testnet endpoints and DEMO_MODE flag
+demo_mode: true
+binance_endpoints:
+  spot_testnet: https://testnet.binance.vision/api
+  futures_testnet: https://testnet.binancefuture.com
+  websocket_testnet: wss://testnet.binance.vision/ws
+state_json_path: /absolute/path/to/STATE_JSON.json
+oms_db_path: /absolute/path/to/OMS_DB.sqlite

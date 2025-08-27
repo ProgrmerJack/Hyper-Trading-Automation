@@ -585,8 +585,8 @@ async def enhanced_trading_cycle(config: Dict[str, Any]) -> None:
         except:
             state = {}
     
-    # Initialize state variables
-    current_equity = account_balance + state.get('simulated_pnl', 0)
+    # Initialize state variables - equity calculated from actual fills only
+    current_equity = account_balance
     win_rate = state.get('win_rate', 0.5)
     
     try:
@@ -720,6 +720,16 @@ async def enhanced_trading_cycle(config: Dict[str, Any]) -> None:
         state['action'] = action
         state['position_size'] = float(position_size)
         
+        # Debugging: Check for simulated_pnl in state
+        if 'simulated_pnl' in state:
+            import traceback
+            with open('state_debug.log', 'a') as debug_file:
+                debug_file.write(f"Detected simulated_pnl in state at {datetime.now(timezone.utc)}\n")
+                debug_file.write(f"Value of simulated_pnl: {state['simulated_pnl']}\n")
+                debug_file.write(f"Full state: {json.dumps(state, indent=2)}\n")
+                traceback.print_stack(file=debug_file)
+                debug_file.write("\n")
+
         # Save state
         state_path.write_text(json.dumps(state, default=str))
         
