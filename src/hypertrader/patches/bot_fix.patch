@@ -1,0 +1,23 @@
+*** Begin Patch
+*** Update File: src/hypertrader/bot.py
+@@
+-    # regime forecast (buggy: used self.config)
+-    forecast_horizon = self.config.get('forecasting', {}).get('horizon', 24)  # <-- NameError
++    # regime forecast (use cfg, not self)
++    fcfg = cfg.get('forecasting', {}) if isinstance(cfg, dict) else {}
++    forecast_horizon = int(fcfg.get('horizon', 24))
+@@
+-    # DEMO MODE: simulated P&L block (produced fake equity)  ---> DISABLE
+-    if store is not None and demo_mode:
+-        # (long block that updated state['simulated_pnl'])
+-        ...
++    # DEMO MODE: absolutely no simulated P&L; orders/fills only.
++    if store is not None and demo_mode:
++        pass
+@@
+-    # old equity calculation used simulated_pnl
+-    simulated_pnl = state.get('simulated_pnl', 0.0)
+-    current_equity = account_balance + simulated_pnl
++    # equity is from realized fills only; state may track it externally
++    current_equity = state.get('current_equity', account_balance)
+*** End Patch
